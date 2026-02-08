@@ -599,10 +599,7 @@
     
     <!-- 多人五子棋主面板 -->
     <div class="game-panel" id="gomokuPanel" style="display: none;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h1 style="margin: 0;">🎮 多人五子棋</h1>
-        <button class="btn btn-warning" onclick="goBackHome()" style="width: auto; padding: 8px 16px;">🏠 返回主页</button>
-      </div>
+      <h1>🎮 多人五子棋</h1>
       
       <!-- 主菜单 -->
       <div id="menuScreen" class="screen active">
@@ -707,8 +704,26 @@
         </div>
       </div>
       
-      <div id="quickActions" style="margin-top: 20px;">
-        <button class="btn btn-primary" onclick="showMenu()" style="margin-bottom: 10px;">🏠 返回主页</button>
+      <!-- 房间加入区 -->
+      <div id="roomJoinSection" style="margin-top: 20px;">
+        <h3 style="margin-bottom: 12px;">🚪 加入房间</h3>
+        <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+          <input type="text" id="joinRoomInput" placeholder="输入房间号" maxlength="6" style="
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            text-align: center;
+          ">
+          <button class="btn btn-success" onclick="joinByInput()" style="width: auto; padding: 10px 16px;">加入</button>
+        </div>
+        <div style="color: #999; font-size: 14px; margin-bottom: 12px;">— 或 —</div>
+        <div id="roomListSidebar" style="max-height: 200px; overflow-y: auto;">
+          <div style="text-align: center; color: #999; padding: 20px;">加载中...</div>
+        </div>
       </div>
     </div>
   </div>
@@ -1238,10 +1253,56 @@
       document.getElementById(screenId).classList.add('active');
     }
     
+    // 刷新侧边栏房间列表
+    function refreshRoomList() {
+      safeSend({ type: 'getRooms' });
+    }
+    
+    // 通过输入房间号加入
+    function joinByInput() {
+      const input = document.getElementById('joinRoomInput');
+      const roomId = input.value.trim().toUpperCase();
+      if (roomId.length < 4) {
+        alert('请输入正确的房间号（至少4位）');
+        return;
+      }
+      joinRoom(roomId);
+      input.value = '';
+    }
+    
+    // 渲染侧边栏房间列表
+    function renderSidebarRoomList(rooms) {
+      const container = document.getElementById('roomListSidebar');
+      if (!rooms || rooms.length === 0) {
+        container.innerHTML = '<div style="text-align: center; color: #999; padding: 10px;">暂无房间</div>';
+        return;
+      }
+      container.innerHTML = rooms.map(r => `
+        <div class="room-item" onclick="joinRoom('${r.id}')" style="
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 10px;
+          background: #f8f9fa;
+          border-radius: 8px;
+          margin-bottom: 8px;
+          cursor: pointer;
+        ">
+          <div>
+            <div style="font-weight: bold; letter-spacing: 2px;">${r.id}</div>
+            <div style="font-size: 12px; color: #666;">${r.playerCount}/10 人</div>
+          </div>
+          <button class="btn btn-primary" style="width: auto; padding: 4px 12px; font-size: 12px;">加入</button>
+        </div>
+      `).join('');
+    }
+    
     // 页面加载
     window.onload = () => {
       connect();
       initBoard();
+      // 启动房间列表定时刷新
+      setInterval(refreshRoomList, 10000); // 每10秒刷新一次
     };
   </script>
 </body>
