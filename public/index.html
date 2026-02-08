@@ -377,6 +377,8 @@
           myColorId = msg.colorId;
           ownerOrderId = msg.ownerOrderId;
           players = msg.players;
+          // 保存颜色到本地
+          localStorage.setItem('gomoku_colorId', msg.colorId);
           switchScreen('roomScreen');
           document.getElementById('roomIdDisplay').textContent = msg.roomId;
           document.getElementById('homeSidebar').style.display = 'none';
@@ -531,10 +533,13 @@
     }
     
     function joinRoom(roomId) {
-      const playerName = document.getElementById('playerName').value.trim() || '玩家' + Date.now() % 1000;
-      // 保存玩家名字到localStorage，方便重连时使用
-      localStorage.setItem('gomoku_playerName', document.getElementById('playerName').value.trim());
-      safeSend({ type: 'join', roomId, playerName });
+      let playerName = document.getElementById('playerName').value.trim();
+      if (!playerName) {
+        playerName = localStorage.getItem('gomoku_playerName') || '玩家' + Date.now() % 1000;
+      }
+      // 从本地存储获取上次选的颜色
+      const savedColorId = parseInt(localStorage.getItem('gomoku_colorId') || '0');
+      safeSend({ type: 'join', roomId, playerName, colorId: savedColorId });
     }
     
     function joinByInput() {
@@ -544,13 +549,19 @@
         alert('请输入正确的房间号');
         return;
       }
-      localStorage.setItem('gomoku_playerName', document.getElementById('playerName').value.trim());
-      joinRoom(roomId);
+      let playerName = document.getElementById('playerName').value.trim();
+      if (!playerName) {
+        playerName = localStorage.getItem('gomoku_playerName') || '玩家' + Date.now() % 1000;
+      }
+      const savedColorId = parseInt(localStorage.getItem('gomoku_colorId') || '0');
+      safeSend({ type: 'join', roomId, playerName, colorId: savedColorId });
       input.value = '';
     }
     
     function selectColor(colorId) {
       if (players.some(p => p.colorId === colorId)) return;
+      myColorId = colorId;
+      localStorage.setItem('gomoku_colorId', colorId);
       safeSend({ type: 'selectColor', orderId: myOrderId, colorId });
     }
     
