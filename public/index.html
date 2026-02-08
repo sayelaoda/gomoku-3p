@@ -1013,13 +1013,6 @@
         nicknameColor.style.background = getPlayerColor(myPlayer.id);
       }
     }
-      
-      const myPlayer = players.find(p => p.id === playerId);
-      if (myPlayer) {
-        nickname.textContent = myPlayer.name;
-        nicknameColor.style.background = colors[myPlayer.id];
-      }
-    }
     
     // 下棋
     function makeMove(row, col) {
