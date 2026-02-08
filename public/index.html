@@ -154,8 +154,6 @@
       font-weight: bold;
       margin-right: 10px;
     }
-    
-    .player-order.offline { background: #999; }
     .player-name { flex: 1; font-weight: 600; }
     .player-color { width: 24px; height: 24px; border-radius: 50%; border: 2px solid #ddd; }
     
@@ -217,7 +215,8 @@
     .my-piece-info { text-align: center; padding: 12px; background: #f8f9fa; border-radius: 8px; margin-top: 16px; }
     .my-piece-color { display: inline-block; width: 24px; height: 24px; border-radius: 50%; vertical-align: middle; margin: 0 8px; border: 2px solid #ddd; }
     
-    .skip-btn { margin-top: 10px; padding: 10px; background: #f39c12; color: white; border: none; border-radius: 8px; cursor: pointer; width: 100%; }
+    .action-buttons { display: flex; gap: 10px; margin-top: 16px; }
+    .action-buttons .btn { margin-bottom: 0; flex: 1; }
     
     @media (max-width: 900px) {
       .container { flex-direction: column; }
@@ -282,10 +281,17 @@
           <span id="myPieceName"></span>
         </div>
         
-        <button class="btn btn-warning" onclick="leaveGameToHome()" style="margin-top: 16px;">返回主页</button>
+        <div class="action-buttons">
+          <button class="btn btn-warning" onclick="leaveGameToHome()">返回主页</button>
+        </div>
         
-        <div id="skipSection" style="display:none; margin-top: 16px;">
-          <button class="skip-btn" onclick="requestSkip()">⏭️ 跳过离线玩家回合</button>
+        <!-- 等待重连UI -->
+        <div id="waitingReconnectUI" style="display:none; margin-top: 16px; padding: 16px; background: #fff3cd; border-radius: 8px; text-align: center;">
+          <p style="color: #856404; margin-bottom: 12px;">⚠️ 等待 <span id="waitingPlayerName"></span> 重连中...</p>
+          <div class="modal-buttons" style="justify-content: center;">
+            <button class="btn btn-success" onclick="continueWaiting()" style="width: auto; padding: 10px 20px;">继续等待</button>
+            <button class="btn btn-danger" onclick="skipOffline()" style="width: auto; padding: 10px 20px;">跳过该玩家</button>
+          </div>
         </div>
       </div>
     </div>
@@ -324,18 +330,6 @@
       <button class="btn btn-warning" onclick="closeModal()">返回房间</button>
     </div>
   </div>
-  
-  <!-- 跳过确认弹窗 -->
-  <div id="skipModal" class="modal">
-    <div class="modal-content">
-      <h2>跳过玩家回合</h2>
-      <p id="skipMessage" style="margin: 20px 0; color: #666;">玩家 XXX 离线了，是否跳过他的回合？</p>
-      <div class="modal-buttons">
-        <button class="btn btn-success" onclick="approveSkip()">同意</button>
-        <button class="btn btn-danger" onclick="rejectSkip()">拒绝</button>
-      </div>
-    </div>
-  </div>
 
   <script>
     const PLAYER_ROLES = ['黑棋', '白棋', '红棋', '蓝棋', '绿棋', '黄棋', '紫棋', '橙棋', '粉棋', '青棋'];
@@ -349,7 +343,7 @@
     let currentRoomId = null;
     let players = [];
     let currentTurn = null;
-    let pendingSkipOrderId = null;
+    let waitingReconnect = false;
     
     function connect() {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -389,29 +383,18 @@
           document.getElementById('gameSidebar').style.display = 'none';
           updatePlayerList();
           updateColorPicker();
-          // 延迟刷新房间列表，确保WebSocket消息顺序
           setTimeout(refreshRoomList, 100);
           break;
           
         case 'playerJoined':
         case 'playerLeft':
-        case 'playerOffline':
         case 'colorChanged':
-          console.log('Received:', msg.type, msg.players);
           players = msg.players;
           updatePlayerList();
           updateColorPicker();
           if (msg.type === 'playerLeft') {
             addSystemMessage(msg.playerName + ' 离开了房间');
-          } else if (msg.type === 'playerOffline') {
-            addSystemMessage(msg.playerName + ' 离线了');
           }
-          break;
-          
-        case 'ownerChanged':
-          ownerOrderId = msg.newOwnerOrderId;
-          addSystemMessage('新房主: ' + msg.newOwnerName);
-          updatePlayerList();
           break;
           
         case 'gameStart':
@@ -421,7 +404,8 @@
           document.getElementById('gameSidebar').style.display = 'block';
           initBoard();
           currentTurn = 0;
-          document.getElementById('skipSection').style.display = 'none';
+          waitingReconnect = false;
+          document.getElementById('waitingReconnectUI').style.display = 'none';
           updateGame();
           addSystemMessage('游戏开始！按加入顺序下棋');
           break;
@@ -429,45 +413,91 @@
         case 'move':
           placePiece(msg.row, msg.col, msg.colorId);
           currentTurn = msg.currentPlayer;
-          document.getElementById('skipSection').style.display = (myOrderId === ownerOrderId && players.some(p => !p.online)) ? 'block' : 'none';
+          waitingReconnect = false;
+          document.getElementById('waitingReconnectUI').style.display = 'none';
           updateTurn();
           if (msg.gameOver) {
             showWinner(msg.winner);
           }
           break;
           
-        case 'turnWaiting':
-          addSystemMessage('等待 ' + msg.playerName + ' 重连...');
-          document.getElementById('skipSection').style.display = (myOrderId === ownerOrderId) ? 'block' : 'none';
+        case 'playerOffline':
+          addSystemMessage(msg.playerName + ' 离线了');
           break;
           
-        case 'skipRequest':
-          // 房主收到跳过请求
-          pendingSkipOrderId = msg.offlineOrderId;
-          document.getElementById('skipMessage').textContent = '玩家 ' + msg.offlinePlayerName + ' 离线了，是否跳过他的回合？';
-          document.getElementById('skipModal').style.display = 'flex';
+        case 'waitingReconnect':
+          waitingReconnect = true;
+          document.getElementById('waitingPlayerName').textContent = msg.waitingFor;
+          document.getElementById('waitingReconnectUI').style.display = 'block';
+          addSystemMessage('等待 ' + msg.waitingFor + ' 重连中...');
           break;
           
-        case 'waitingForSkip':
-          addSystemMessage('等待房主决定是否跳过 ' + msg.offlinePlayerName + ' 的回合...');
+        case 'playerReconnectRequest':
+          // 房主收到重连请求
+          if (confirm(msg.playerName + ' 尝试重连，是否允许？')) {
+            safeSend({ type: 'continueGame', orderId: myOrderId });
+          } else {
+            safeSend({ type: 'skipOffline', orderId: myOrderId });
+          }
           break;
           
-        case 'skipApproved':
-          addSystemMessage('已跳过离线玩家回合，继续游戏');
-          currentTurn = msg.currentPlayer;
-          document.getElementById('skipSection').style.display = 'none';
+        case 'playerReconnected':
+          waitingReconnect = false;
+          document.getElementById('waitingReconnectUI').style.display = 'none';
+          players = msg.players;
+          addSystemMessage(msg.playerName + ' 已重连！');
           updateTurn();
           break;
           
-        case 'skipRejected':
-          addSystemMessage(msg.message);
-          document.getElementById('skipSection').style.display = (myOrderId === ownerOrderId && players.some(p => !p.online)) ? 'block' : 'none';
+        case 'gameContinued':
+          waitingReconnect = false;
+          document.getElementById('waitingReconnectUI').style.display = 'none';
+          addSystemMessage('继续游戏！');
+          updateTurn();
+          break;
+          
+        case 'offlineSkipped':
+          waitingReconnect = false;
+          document.getElementById('waitingReconnectUI').style.display = 'none';
+          currentTurn = msg.currentPlayer;
+          addSystemMessage('已跳过离线玩家，继续游戏');
+          updateTurn();
+          break;
+          
+        case 'rejoined':
+          // 玩家重连成功
+          currentRoomId = msg.roomId;
+          myOrderId = msg.orderId;
+          myColorId = msg.colorId;
+          currentTurn = msg.currentPlayer;
+          players = msg.players;
+          switchScreen('gameScreen');
+          document.getElementById('gameRoomIdDisplay').textContent = msg.roomId;
+          document.getElementById('homeSidebar').style.display = 'none';
+          document.getElementById('gameSidebar').style.display = 'block';
+          document.getElementById('waitingReconnectUI').style.display = 'none';
+          
+          // 恢复棋盘
+          initBoard();
+          for (let i = 0; i < 15; i++) {
+            for (let j = 0; j < 15; j++) {
+              if (msg.board[i][j] !== 0) {
+                const colorId = msg.board[i][j] - 1;
+                placePiece(i, j, colorId);
+              }
+            }
+          }
+          
+          updateGame();
+          updateTurn();
+          addSystemMessage('重连成功！');
           break;
           
         case 'restart':
           initBoard();
           currentTurn = 0;
-          document.getElementById('skipSection').style.display = 'none';
+          waitingReconnect = false;
+          document.getElementById('waitingReconnectUI').style.display = 'none';
           updateTurn();
           addSystemMessage('游戏重新开始！');
           break;
@@ -502,6 +532,8 @@
     
     function joinRoom(roomId) {
       const playerName = document.getElementById('playerName').value.trim() || '玩家' + Date.now() % 1000;
+      // 保存玩家名字到localStorage，方便重连时使用
+      localStorage.setItem('gomoku_playerName', document.getElementById('playerName').value.trim());
       safeSend({ type: 'join', roomId, playerName });
     }
     
@@ -512,6 +544,7 @@
         alert('请输入正确的房间号');
         return;
       }
+      localStorage.setItem('gomoku_playerName', document.getElementById('playerName').value.trim());
       joinRoom(roomId);
       input.value = '';
     }
@@ -527,19 +560,17 @@
       list.innerHTML = players.map((p, idx) => {
         const isOwner = p.orderId === ownerOrderId;
         const isMe = p.orderId === myOrderId;
-        const isOffline = !p.online;
         return '<div class="player-item">' +
-          '<div class="player-order ' + (isOffline ? 'offline' : '') + '">' + (idx + 1) + '</div>' +
-          '<div class="player-name">' + p.name + (isOwner ? ' 👑' : '') + (isMe ? ' (你)' : '') + (isOffline ? ' (离线)' : '') + '</div>' +
+          '<div class="player-order">' + (idx + 1) + '</div>' +
+          '<div class="player-name">' + p.name + (isOwner ? ' 👑' : '') + (isMe ? ' (你)' : '') + '</div>' +
           '<div class="player-color" style="background:' + p.color + '"></div></div>';
       }).join('');
       
       const startBtn = document.getElementById('startBtn');
-      const onlineCount = players.filter(p => p.online).length;
       if (myOrderId === ownerOrderId) {
         startBtn.style.display = 'block';
-        startBtn.disabled = onlineCount < 2;
-        startBtn.textContent = onlineCount < 2 ? '开始游戏 (还需 ' + (2 - onlineCount) + ' 人)' : '开始游戏';
+        startBtn.disabled = players.length < 2;
+        startBtn.textContent = players.length < 2 ? '开始游戏 (还需 ' + (2 - players.length) + ' 人)' : '开始游戏';
       } else {
         startBtn.style.display = 'none';
       }
@@ -577,6 +608,7 @@
     }
     
     function makeMove(row, col) {
+      if (waitingReconnect) return;
       if (myOrderId !== currentTurn) return;
       const cell = document.querySelector('.cell[data-row="' + row + '"][data-col="' + col + '"]');
       if (cell && cell.querySelector('.piece')) return;
@@ -607,11 +639,11 @@
       
       if (player) {
         const isMyTurn = player.orderId === myOrderId;
-        const isOffline = !player.online;
+        const isWaiting = waitingReconnect && player.orderId !== myOrderId;
         
-        if (isOffline) {
+        if (isWaiting) {
           turnIndicator.className = 'turn-indicator offline';
-          turnIndicator.innerHTML = '⚠️ ' + player.name + ' 离线中';
+          turnIndicator.innerHTML = '⚠️ 等待 ' + player.name + ' 重连...';
         } else {
           turnIndicator.className = isMyTurn ? 'turn-indicator' : 'turn-indicator waiting';
           turnIndicator.innerHTML = isMyTurn 
@@ -634,26 +666,16 @@
     
     function closeModal() {
       document.getElementById('winnerModal').style.display = 'none';
-      document.getElementById('skipModal').style.display = 'none';
     }
     
-    function requestSkip() {
-      // 找到离线的玩家
-      const offlinePlayer = players.find(p => !p.online && p.orderId === currentTurn);
-      if (offlinePlayer) {
-        safeSend({ type: 'requestSkip', offlineOrderId: offlinePlayer.orderId });
-        addSystemMessage('已请求跳过 ' + offlinePlayer.name + ' 的回合，等待房主确认...');
-      }
+    // 房主继续等待
+    function continueWaiting() {
+      safeSend({ type: 'continueGame', orderId: myOrderId });
     }
     
-    function approveSkip() {
-      safeSend({ type: 'approveSkip', orderId: myOrderId });
-      document.getElementById('skipModal').style.display = 'none';
-    }
-    
-    function rejectSkip() {
-      safeSend({ type: 'rejectSkip', orderId: myOrderId, offlineOrderId: pendingSkipOrderId });
-      document.getElementById('skipModal').style.display = 'none';
+    // 房主跳过离线玩家
+    function skipOffline() {
+      safeSend({ type: 'skipOffline', orderId: myOrderId });
     }
     
     function leaveCurrentRoom() {
@@ -670,9 +692,13 @@
     }
     
     function leaveGameToHome() {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'leave' }));
+      }
       currentRoomId = null;
       myOrderId = null;
       players = [];
+      waitingReconnect = false;
       switchScreen('menuScreen');
       document.getElementById('homeSidebar').style.display = 'block';
       document.getElementById('gameSidebar').style.display = 'none';
