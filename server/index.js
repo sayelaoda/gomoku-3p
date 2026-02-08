@@ -163,29 +163,61 @@ wss.on('connection', (ws) => {
         const existingPlayer = room.players.find(p => p.name === msg.playerName && (!p.ws || p.ws.readyState !== WebSocket.OPEN));
         
         if (existingPlayer) {
-          // 恢复重连
+          // 游戏未开始时，如果已有同名离线玩家，尝试重连
+          if (!room.gameStarted) {
+            existingPlayer.ws = ws;
+            currentRoom = room;
+            playerInfo = existingPlayer;
+            
+            const currentOwnerOrderId = getOwnerOrderId(room);
+            
+            safeSend(ws, { 
+              type: 'joined', 
+              roomId: room.id, 
+              orderId: existingPlayer.orderId,
+              colorId: existingPlayer.colorId,
+              ownerOrderId: currentOwnerOrderId,
+              players: room.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color }))
+            });
+            
+            broadcast(room, {
+              type: 'playerReconnected',
+              playerName: existingPlayer.name,
+              ownerOrderId: currentOwnerOrderId,
+              players: room.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color }))
+            }, ws);
+            return;
+          }
+          
+          // 游戏已开始时，正常重连
           existingPlayer.ws = ws;
-          existingPlayer.isOwner = false; // 不再是房主
           currentRoom = room;
           playerInfo = existingPlayer;
           
-          const currentOwnerOrderId = getOwnerOrderId(room);
-          
           safeSend(ws, { 
-            type: 'joined', 
-            roomId: room.id, 
+            type: 'rejoined', 
+            roomId: room.id,
             orderId: existingPlayer.orderId,
             colorId: existingPlayer.colorId,
-            ownerOrderId: currentOwnerOrderId,
-            players: room.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color }))
+            board: room.board,
+            currentPlayer: room.currentPlayer,
+            ownerOrderId: getOwnerOrderId(room),
+            players: room.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color, online: p.ws && p.ws.readyState === WebSocket.OPEN }))
           });
           
           broadcast(room, {
             type: 'playerReconnected',
             playerName: existingPlayer.name,
-            ownerOrderId: currentOwnerOrderId,
-            players: room.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color }))
+            ownerOrderId: getOwnerOrderId(room),
+            players: room.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color, online: p.ws && p.ws.readyState === WebSocket.OPEN }))
           }, ws);
+          return;
+        }
+        
+        // 检查是否有人用了同样的名字（已真正离开的）
+        const nameExists = room.players.some(p => p.name === msg.playerName);
+        if (nameExists) {
+          safeSend(ws, { type: 'error', message: '该昵称已被使用，请使用其他昵称' });
           return;
         }
         
