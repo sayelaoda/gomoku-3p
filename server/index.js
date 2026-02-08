@@ -102,7 +102,7 @@ wss.on('connection', (ws) => {
           orderId: 0, 
           colorId: 0, 
           ownerOrderId: 0,
-          players: [{ orderId: 0, colorId: 0, name: '玩家1', role: '黑棋', color: PLAYER_COLORS[0] }]
+          players: [{ orderId: 0, colorId: 0, name: msg.playerName || '玩家1', role: '黑棋', color: PLAYER_COLORS[0], online: true }]
         });
         break;
       }
@@ -210,7 +210,7 @@ wss.on('connection', (ws) => {
         broadcast(currentRoom, { 
           type: 'gameStart', 
           currentPlayer: 0,
-          players: currentRoom.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color }))
+          players: currentRoom.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color, online: p.online }))
         });
         break;
       }
@@ -234,7 +234,7 @@ wss.on('connection', (ws) => {
           
           broadcast(currentRoom, {
             type: 'colorChanged',
-            players: currentRoom.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color }))
+            players: currentRoom.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color, online: p.online }))
           });
         }
         break;
@@ -361,7 +361,10 @@ wss.on('connection', (ws) => {
         const roomList = [];
         rooms.forEach((room, id) => {
           if (!room.gameStarted) {
-            roomList.push({ id, playerCount: room.players.filter(p => p.online).length });
+            const onlineCount = room.players.filter(p => p.online).length;
+            if (onlineCount > 0) {
+              roomList.push({ id, playerCount: onlineCount });
+            }
           }
         });
         safeSend(ws, { type: 'rooms', rooms: roomList });

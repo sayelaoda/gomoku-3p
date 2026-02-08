@@ -389,13 +389,15 @@
           document.getElementById('gameSidebar').style.display = 'none';
           updatePlayerList();
           updateColorPicker();
-          refreshRoomList();
+          // 延迟刷新房间列表，确保WebSocket消息顺序
+          setTimeout(refreshRoomList, 100);
           break;
           
         case 'playerJoined':
         case 'playerLeft':
         case 'playerOffline':
         case 'colorChanged':
+          console.log('Received:', msg.type, msg.players);
           players = msg.players;
           updatePlayerList();
           updateColorPicker();
