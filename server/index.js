@@ -191,9 +191,54 @@ wss.on('connection', (ws) => {
           return;
         }
         
-        // 检查是否有人用了同样的名字（游戏未开始时已真正离开的）
+        // 检查是否有人用了同样的名字
         const nameExists = room.players.some(p => p.name === msg.playerName);
         if (nameExists) {
+          // 游戏未开始时，允许重新加入但不再是房主
+          if (!room.gameStarted) {
+            const takenColors = room.players.map(p => p.colorId);
+            let selectedColorId = msg.colorId;
+            if (selectedColorId === null || selectedColorId === undefined || takenColors.includes(selectedColorId)) {
+              for (let i = 0; i < 10; i++) {
+                if (!takenColors.includes(i)) {
+                  selectedColorId = i;
+                  break;
+                }
+              }
+            }
+            
+            const orderId = room.players.length;
+            const player = {
+              orderId: orderId,
+              colorId: selectedColorId,
+              name: msg.playerName,
+              color: PLAYER_COLORS[selectedColorId],
+              role: PLAYER_ROLES[selectedColorId],
+              ws: ws,
+              isOwner: false // 不再是房主
+            };
+            room.players.push(player);
+            
+            currentRoom = room;
+            playerInfo = player;
+            
+            safeSend(ws, { 
+              type: 'joined', 
+              roomId: room.id, 
+              orderId: player.orderId,
+              colorId: player.colorId,
+              ownerOrderId: getOwnerOrderId(room),
+              players: room.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color }))
+            });
+            
+            broadcast(room, {
+              type: 'playerJoined',
+              players: room.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color }))
+            }, ws);
+            return;
+          }
+          
+          // 游戏已开始时拒绝
           safeSend(ws, { type: 'error', message: '该昵称已被使用，请使用其他昵称' });
           return;
         }
