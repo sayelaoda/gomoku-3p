@@ -487,11 +487,11 @@
           break;
           
         case 'playerRemoved':
-          waitingReconnect = false;
+          waitingReconnect = msg.waitingReconnect !== undefined ? msg.waitingReconnect : false;
           pendingOfflineOrderId = null;
           players = msg.players;
           currentTurn = msg.currentPlayer;
-          ownerOrderId = players[0]?.orderId || 0;
+          ownerOrderId = msg.ownerOrderId !== undefined ? msg.ownerOrderId : players[0]?.orderId;
           addSystemMessage(msg.playerName + ' 已被移除');
           updatePlayerList();
           updateTurn();

@@ -275,6 +275,7 @@ wss.on('connection', (ws) => {
             broadcast(currentRoom, {
               type: 'playerRemoved',
               playerName: offlinePlayer.name,
+              waitingReconnect: false,
               players: currentRoom.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color })),
               currentPlayer: currentRoom.currentPlayer,
               ownerOrderId: currentRoom.players.find(p => p.isOwner)?.orderId
@@ -608,6 +609,7 @@ setInterval(() => {
           broadcast(room, {
             type: 'playerRemoved',
             playerName: '离线玩家',
+            waitingReconnect: false,
             players: room.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color })),
             currentPlayer: room.currentPlayer,
             ownerOrderId: room.players.find(p => p.isOwner)?.orderId
