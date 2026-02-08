@@ -247,6 +247,8 @@ wss.on('connection', (ws) => {
         } else {
           if (offlinePlayer) {
             const removedWasOwner = offlinePlayer.isOwner;
+            const removedWasCurrent = currentRoom.currentPlayer === offlineOrderId;
+            
             currentRoom.players = currentRoom.players.filter(p => p.orderId !== offlineOrderId);
             currentRoom.waitingReconnect = false;
             currentRoom.pendingOfflineOrderId = null;
@@ -255,11 +257,11 @@ wss.on('connection', (ws) => {
               currentRoom.players[0].isOwner = true;
             }
             
-            if (currentRoom.players.length > 0) {
-              const currentIdx = currentRoom.players.findIndex(p => p.orderId === currentRoom.currentPlayer);
-              if (currentIdx === -1 || currentIdx >= currentRoom.players.length) {
-                currentRoom.currentPlayer = currentRoom.players[0] ? currentRoom.players[0].orderId : 0;
-              }
+            // 如果移除的是当前玩家，找到下一个玩家
+            if (removedWasCurrent && currentRoom.players.length > 0) {
+              const removedIdx = currentRoom.players.findIndex(p => p.orderId === offlineOrderId);
+              const nextIdx = removedIdx % currentRoom.players.length;
+              currentRoom.currentPlayer = currentRoom.players[nextIdx].orderId;
             }
             
             broadcast(currentRoom, {
@@ -573,9 +575,18 @@ setInterval(() => {
         }
         
         if (room.players.length > 0) {
-          const onlinePlayers = room.players.filter(p => p.ws && p.ws.readyState === WebSocket.OPEN);
-          if (onlinePlayers.length > 0 && onlinePlayers.findIndex(p => p.orderId === room.currentPlayer) === -1) {
-            room.currentPlayer = onlinePlayers[0].orderId;
+          // 确保currentPlayer是有效的在线玩家
+          const currentIsValid = room.players.some(p => p.orderId === room.currentPlayer);
+          if (!currentIsValid) {
+            // 找到下一个玩家
+            const offlineOrderId = room.pendingOfflineOrderId;
+            const removedIdx = room.players.findIndex(p => p.orderId === offlineOrderId);
+            if (removedIdx !== -1) {
+              const nextIdx = removedIdx % room.players.length;
+              room.currentPlayer = room.players[nextIdx].orderId;
+            } else {
+              room.currentPlayer = room.players[0].orderId;
+            }
           }
           
           broadcast(room, {
