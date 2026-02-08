@@ -34,7 +34,7 @@ function getOwnerOrderId(room) {
     return onlinePlayer.orderId;
   }
   
-  return room.players.length > 0 ? room.players[0].orderId : 0;
+  return 0;
 }
 
 function getCurrentPlayer(room) {
@@ -201,8 +201,10 @@ wss.on('connection', (ws) => {
           return;
         }
         
-        // 检查是否有人用了同样的名字（在线玩家）
-        const nameExists = room.players.some(p => p.name === msg.playerName && p.ws && p.ws.readyState === WebSocket.OPEN);
+        // 检查是否有人用了同样的名字（在线且ws有效的玩家）
+        const nameExists = room.players.some(p => {
+          return p.name === msg.playerName && p.ws && p.ws.readyState === WebSocket.OPEN;
+        });
         if (nameExists) {
           // 游戏已开始时拒绝
           if (room.gameStarted) {
@@ -237,12 +239,18 @@ wss.on('connection', (ws) => {
           currentRoom = room;
           playerInfo = player;
           
+          // 查找当前真正的房主
+          const currentOwner = room.players.find(p => p.isOwner && p.ws && p.ws.readyState === WebSocket.OPEN);
+          const currentOwnerOrderId = currentOwner ? currentOwner.orderId : (
+            room.players.find(p => p.ws && p.ws.readyState === WebSocket.OPEN)?.orderId ?? 0
+          );
+          
           safeSend(ws, { 
             type: 'joined', 
             roomId: room.id, 
             orderId: player.orderId,
             colorId: player.colorId,
-            ownerOrderId: getOwnerOrderId(room),
+            ownerOrderId: currentOwnerOrderId,
             players: room.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color }))
           });
           
