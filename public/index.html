@@ -346,8 +346,8 @@
     let currentRoomId = null;
     let players = [];
     let currentTurn = null;
-    let waitingReconnect = false; // 等待重连状态
-    let pendingOfflineOrderId = null; // 待处理的离线玩家
+    let waitingReconnect = false;
+    let pendingOfflineOrderId = null;
     
     function connect() {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -381,6 +381,8 @@
           myColorId = msg.colorId;
           ownerOrderId = msg.ownerOrderId;
           players = msg.players;
+          waitingReconnect = false;
+          pendingOfflineOrderId = null;
           localStorage.setItem('gomoku_colorId', msg.colorId);
           switchScreen('roomScreen');
           document.getElementById('roomIdDisplay').textContent = msg.roomId;
@@ -393,18 +395,24 @@
           break;
           
         case 'playerJoined':
-        case 'playerLeft':
-        case 'colorChanged':
           players = msg.players;
-          // 同步房主为第一个玩家
-          if (msg.type === 'playerLeft' || msg.type === 'playerJoined') {
-            ownerOrderId = players[0]?.orderId;
-          }
+          // 不更新ownerOrderId，等待ownerChanged消息
           updatePlayerList();
           updateColorPicker();
-          if (msg.type === 'playerLeft') {
-            addSystemMessage(msg.playerName + ' 离开了房间');
-          }
+          break;
+          
+        case 'playerLeft':
+          players = msg.players;
+          // 不更新ownerOrderId，等待ownerChanged消息
+          updatePlayerList();
+          updateColorPicker();
+          addSystemMessage(msg.playerName + ' 离开了房间');
+          break;
+          
+        case 'colorChanged':
+          players = msg.players;
+          updatePlayerList();
+          updateColorPicker();
           break;
           
         case 'ownerChanged':
@@ -423,7 +431,7 @@
           waitingReconnect = false;
           pendingOfflineOrderId = null;
           clearChat();
-          players = msg.players; // 更新玩家列表
+          players = msg.players;
           ownerOrderId = msg.ownerOrderId !== undefined ? msg.ownerOrderId : players[0]?.orderId;
           updateGame();
           updatePlayerList();
@@ -446,7 +454,7 @@
           break;
           
         case 'ownerConfirm':
-          // 房主收到确认弹窗
+          // 只有当前房主收到弹窗
           if (myOrderId === ownerOrderId) {
             pendingOfflineOrderId = msg.orderId;
             document.getElementById('ownerConfirmMsg').textContent = '玩家 ' + msg.playerName + ' 离线了，是否等待重连？';
@@ -455,8 +463,9 @@
           break;
           
         case 'playerReconnected':
-          players = msg.players;
           waitingReconnect = false;
+          pendingOfflineOrderId = null;
+          players = msg.players;
           ownerOrderId = players[0]?.orderId || 0;
           addSystemMessage(msg.playerName + ' 已重连！');
           updatePlayerList();
@@ -465,25 +474,29 @@
           
         case 'gameResumed':
           waitingReconnect = false;
+          pendingOfflineOrderId = null;
           addSystemMessage(msg.message);
           updateTurn();
           break;
           
         case 'playerRemoved':
           waitingReconnect = false;
+          pendingOfflineOrderId = null;
           players = msg.players;
           currentTurn = msg.currentPlayer;
+          ownerOrderId = players[0]?.orderId || 0;
           addSystemMessage(msg.playerName + ' 已被移除');
           updatePlayerList();
           updateTurn();
           break;
           
         case 'rejoined':
-          // 玩家重连成功
           currentRoomId = msg.roomId;
           myOrderId = msg.orderId;
           myColorId = msg.colorId;
           currentTurn = msg.currentPlayer;
+          waitingReconnect = false;
+          pendingOfflineOrderId = null;
           players = msg.players;
           switchScreen('gameScreen');
           document.getElementById('gameRoomIdDisplay').textContent = msg.roomId;
@@ -510,6 +523,8 @@
         case 'restart':
           initBoard();
           currentTurn = 0;
+          waitingReconnect = false;
+          pendingOfflineOrderId = null;
           clearChat();
           updateTurn();
           addSystemMessage('游戏重新开始！');
@@ -521,10 +536,6 @@
           
         case 'chat':
           addChatMessage(msg);
-          break;
-          
-        case 'gameEnd':
-          addSystemMessage(msg.reason);
           break;
           
         case 'error':
@@ -634,6 +645,7 @@
     
     function makeMove(row, col) {
       if (myOrderId !== currentTurn) return;
+      if (waitingReconnect) return;
       const cell = document.querySelector('.cell[data-row="' + row + '"][data-col="' + col + '"]');
       if (cell && cell.querySelector('.piece')) return;
       safeSend({ type: 'move', orderId: myOrderId, row, col });
@@ -660,7 +672,6 @@
     function updateTurn() {
       const turnIndicator = document.getElementById('currentTurn');
       
-      // 检查是否等待重连
       if (waitingReconnect) {
         turnIndicator.className = 'turn-indicator paused';
         turnIndicator.innerHTML = '⏸ 等待房主处理...';
@@ -694,13 +705,11 @@
       document.getElementById('ownerConfirmModal').style.display = 'none';
     }
     
-    // 房主继续等待
     function ownerContinueWaiting() {
       safeSend({ type: 'ownerDecision', orderId: myOrderId, continueWaiting: true });
       document.getElementById('ownerConfirmModal').style.display = 'none';
     }
     
-    // 房主移除离线玩家
     function ownerSkipPlayer() {
       safeSend({ type: 'ownerDecision', orderId: myOrderId, continueWaiting: false });
       document.getElementById('ownerConfirmModal').style.display = 'none';
@@ -712,7 +721,10 @@
       }
       currentRoomId = null;
       myOrderId = null;
+      ownerOrderId = null;
       players = [];
+      waitingReconnect = false;
+      pendingOfflineOrderId = null;
       switchScreen('menuScreen');
       document.getElementById('homeSidebar').style.display = 'block';
       document.getElementById('gameSidebar').style.display = 'none';
@@ -725,7 +737,10 @@
       }
       currentRoomId = null;
       myOrderId = null;
+      ownerOrderId = null;
       players = [];
+      waitingReconnect = false;
+      pendingOfflineOrderId = null;
       switchScreen('menuScreen');
       document.getElementById('homeSidebar').style.display = 'block';
       document.getElementById('gameSidebar').style.display = 'none';
