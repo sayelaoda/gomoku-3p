@@ -9,7 +9,7 @@ const server = http.createServer(app);
 const wss = new WebSocket.Server({ server, path: '/' });
 
 function safeSend(ws, data) {
-  if (ws.readyState === WebSocket.OPEN) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(data));
   }
 }
@@ -75,8 +75,8 @@ wss.on('connection', (ws) => {
           currentPlayer: 0,
           gameStarted: false,
           winner: null,
-          history: [],
-          waitingReconnect: false,  // 等待重连模式
+          waitingReconnect: false,
+          pendingOfflineOrderId: null,
           createdAt: Date.now(),
           lastActivity: Date.now()
         };
@@ -120,7 +120,6 @@ wss.on('connection', (ws) => {
           
           if (offlinePlayer && offlinePlayer.name === msg.playerName) {
             offlinePlayer.ws = ws;
-            offlinePlayer.reconnecting = true;
             
             currentRoom = room;
             playerInfo = offlinePlayer;
@@ -133,23 +132,14 @@ wss.on('connection', (ws) => {
               colorId: offlinePlayer.colorId,
               board: room.board,
               currentPlayer: room.currentPlayer,
-              players: room.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color }))
+              players: room.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color, online: p.ws && p.ws.readyState === WebSocket.OPEN }))
             });
             
-            // 通知房主有玩家重连
-            const owner = room.players.find(p => p.orderId === room.players[0]?.orderId);
-            if (owner && owner.ws && owner.ws.readyState === WebSocket.OPEN) {
-              safeSend(owner.ws, {
-                type: 'playerReconnectRequest',
-                playerName: offlinePlayer.name,
-                orderId: offlinePlayer.orderId
-              });
-            }
-            
+            // 通知所有人
             broadcast(room, {
               type: 'playerReconnected',
               playerName: offlinePlayer.name,
-              players: room.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color }))
+              players: room.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color, online: p.ws && p.ws.readyState === WebSocket.OPEN }))
             });
           } else {
             safeSend(ws, { type: 'error', message: '游戏已开始，无法加入' });
@@ -167,10 +157,7 @@ wss.on('connection', (ws) => {
         const takenColors = room.players.map(p => p.colorId);
         let selectedColorId = msg.colorId;
         
-        // 检查是否需要自动分配颜色
-        // 注意：0是有效颜色（黑色），所以要用 === null 或 === undefined
         if (selectedColorId === null || selectedColorId === undefined || takenColors.includes(selectedColorId)) {
-          // 找到第一个可用的颜色
           for (let i = 0; i < 10; i++) {
             if (!takenColors.includes(i)) {
               selectedColorId = i;
@@ -209,41 +196,48 @@ wss.on('connection', (ws) => {
         break;
       }
       
-      case 'continueGame': {
-        // 房主选择继续游戏
-        if (!currentRoom) return;
+      case 'ownerDecision': {
+        // 房主决定是否等待重连
+        if (!currentRoom || !currentRoom.waitingReconnect) return;
         if (msg.orderId !== currentRoom.players[0]?.orderId) return; // 只有房主
         
-        currentRoom.waitingReconnect = false;
-        currentRoom.lastActivity = Date.now();
+        const offlineOrderId = currentRoom.pendingOfflineOrderId;
+        const offlinePlayer = currentRoom.players.find(p => p.orderId === offlineOrderId);
         
-        broadcast(currentRoom, {
-          type: 'gameContinued',
-          currentPlayer: currentRoom.currentPlayer
-        });
-        break;
-      }
-      
-      case 'skipOffline': {
-        // 房主选择跳过离线玩家
-        if (!currentRoom || !currentRoom.waitingReconnect) return;
-        if (msg.orderId !== currentRoom.players[0]?.orderId) return;
-        
-        const onlinePlayers = currentRoom.players.filter(p => p.ws && p.ws.readyState === WebSocket.OPEN);
-        const currentIdx = onlinePlayers.findIndex(p => p.orderId === currentRoom.currentPlayer);
-        
-        if (onlinePlayers.length > 0) {
-          const nextIdx = (currentIdx + 1) % onlinePlayers.length;
-          currentRoom.currentPlayer = onlinePlayers[nextIdx].orderId;
+        if (msg.continueWaiting) {
+          // 继续等待
+          currentRoom.waitingReconnect = false;
+          currentRoom.pendingOfflineOrderId = null;
+          broadcast(currentRoom, {
+            type: 'gameResumed',
+            message: '继续等待 ' + (offlinePlayer ? offlinePlayer.name : '玩家') + ' 重连...'
+          });
+        } else {
+          // 不等待，移除离线玩家
+          if (offlinePlayer) {
+            currentRoom.players = currentRoom.players.filter(p => p.orderId !== offlineOrderId);
+            currentRoom.waitingReconnect = false;
+            currentRoom.pendingOfflineOrderId = null;
+            
+            // 找到下一个在线玩家
+            const onlinePlayers = currentRoom.players.filter(p => p.ws && p.ws.readyState === WebSocket.OPEN);
+            if (onlinePlayers.length > 0) {
+              const currentIdx = onlinePlayers.findIndex(p => p.orderId === currentRoom.currentPlayer);
+              if (currentIdx === -1 || currentIdx >= onlinePlayers.length) {
+                currentRoom.currentPlayer = onlinePlayers[0].orderId;
+              }
+            }
+            
+            broadcast(currentRoom, {
+              type: 'playerRemoved',
+              playerName: offlinePlayer.name,
+              players: currentRoom.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color })),
+              currentPlayer: currentRoom.currentPlayer
+            });
+          }
         }
         
-        currentRoom.waitingReconnect = false;
         currentRoom.lastActivity = Date.now();
-        
-        broadcast(currentRoom, {
-          type: 'offlineSkipped',
-          currentPlayer: currentRoom.currentPlayer
-        });
         break;
       }
       
@@ -258,6 +252,7 @@ wss.on('connection', (ws) => {
         currentRoom.history = [];
         currentRoom.winner = null;
         currentRoom.waitingReconnect = false;
+        currentRoom.pendingOfflineOrderId = null;
         
         broadcast(currentRoom, { 
           type: 'gameStart', 
@@ -294,8 +289,8 @@ wss.on('connection', (ws) => {
       
       case 'move': {
         if (!currentRoom || !currentRoom.gameStarted) return;
-        if (currentRoom.currentPlayer !== msg.orderId) return;
         if (currentRoom.waitingReconnect) return; // 等待重连时不能下棋
+        if (currentRoom.currentPlayer !== msg.orderId) return;
         
         const { row, col } = msg;
         if (row < 0 || row >= 15 || col < 0 || col >= 15) return;
@@ -350,146 +345,136 @@ wss.on('connection', (ws) => {
       }
       
       case 'leave': {
-        if (currentRoom) {
-          const player = currentRoom.players.find(p => p.ws === ws);
-          if (!player) return;
+        if (!currentRoom) break;
+        
+        const player = currentRoom.players.find(p => p.ws === ws);
+        if (!player) break;
+        
+        const wasOwner = currentRoom.players[0]?.orderId === player.orderId;
+        const playerName = player.name;
+        
+        // 游戏已开始，标记离线
+        if (currentRoom.gameStarted) {
+          player.ws = null;
           
-          const wasOwner = currentRoom.players[0]?.orderId === player.orderId;
-          const playerName = player.name;
+          broadcast(currentRoom, {
+            type: 'playerOffline',
+            playerName: playerName,
+            orderId: player.orderId
+          });
           
-          // 游戏已开始，标记离线
-          if (currentRoom.gameStarted) {
-            player.ws = null;
-            player.offline = true;
+          // 如果是当前玩家回合，房主决定是否等待
+          if (currentRoom.currentPlayer === player.orderId) {
+            currentRoom.waitingReconnect = true;
+            currentRoom.pendingOfflineOrderId = player.orderId;
+            currentRoom.lastActivity = Date.now();
             
-            broadcast(currentRoom, {
-              type: 'playerOffline',
-              playerName: playerName,
-              orderId: player.orderId
-            });
-            
-            // 如果是当前玩家，进入等待重连模式
-            if (currentRoom.currentPlayer === player.orderId) {
-              currentRoom.waitingReconnect = true;
-              currentRoom.lastActivity = Date.now();
-              
-              broadcast(currentRoom, {
-                type: 'waitingReconnect',
-                waitingFor: playerName
+            // 通知房主
+            const owner = currentRoom.players.find(p => p.orderId === currentRoom.players[0]?.orderId);
+            if (owner && owner.ws && owner.ws.readyState === WebSocket.OPEN) {
+              safeSend(owner.ws, {
+                type: 'ownerConfirm',
+                playerName: playerName,
+                orderId: player.orderId
               });
             }
             
-            // 如果是房主离开，转移房主
-            if (wasOwner && currentRoom.players.some(p => p.ws && p.ws.readyState === WebSocket.OPEN)) {
-              const newOwner = currentRoom.players.find(p => p.ws && p.ws.readyState === WebSocket.OPEN);
+          }
+        } else {
+          // 游戏未开始，直接移除
+          const idx = currentRoom.players.indexOf(player);
+          if (idx > -1) {
+            currentRoom.players.splice(idx, 1);
+            
+            if (currentRoom.players.length === 0) {
+              rooms.delete(currentRoom.id);
+            } else {
               broadcast(currentRoom, {
-                type: 'ownerChanged',
-                newOwnerOrderId: newOwner.orderId,
-                newOwnerName: newOwner.name
+                type: 'playerLeft',
+                playerName: playerName,
+                players: currentRoom.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color }))
               });
-            }
-          } else {
-            // 游戏未开始，直接移除
-            const idx = currentRoom.players.indexOf(player);
-            if (idx > -1) {
-              currentRoom.players.splice(idx, 1);
               
-              if (currentRoom.players.length === 0) {
-                rooms.delete(currentRoom.id);
-              } else {
+              if (wasOwner) {
                 broadcast(currentRoom, {
-                  type: 'playerLeft',
-                  playerName: playerName,
-                  players: currentRoom.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color }))
+                  type: 'ownerChanged',
+                  newOwnerOrderId: currentRoom.players[0].orderId,
+                  newOwnerName: currentRoom.players[0].name
                 });
-                
-                // 房主离开，转移给第一个玩家
-                if (wasOwner) {
-                  broadcast(currentRoom, {
-                    type: 'ownerChanged',
-                    newOwnerOrderId: currentRoom.players[0].orderId,
-                    newOwnerName: currentRoom.players[0].name
-                  });
-                }
               }
             }
           }
-          currentRoom = null;
-          playerInfo = null;
         }
+        
+        currentRoom = null;
+        playerInfo = null;
         break;
       }
     }
   });
 
   ws.on('close', () => {
-    if (currentRoom && playerInfo) {
-      const player = currentRoom.players.find(p => p.ws === ws);
-      if (!player) return;
+    if (!currentRoom || !playerInfo) return;
+    
+    const player = currentRoom.players.find(p => p.ws === ws);
+    if (!player) return;
+    
+    const wasOwner = currentRoom.players[0]?.orderId === player.orderId;
+    const playerName = player.name;
+    
+    // 游戏已开始，标记离线
+    if (currentRoom.gameStarted) {
+      player.ws = null;
       
-      const wasOwner = currentRoom.players[0]?.orderId === player.orderId;
-      const playerName = player.name;
+      broadcast(currentRoom, {
+        type: 'playerOffline',
+        playerName: playerName,
+        orderId: player.orderId
+      });
       
-      // 游戏已开始，标记离线
-      if (currentRoom.gameStarted) {
-        player.ws = null;
-        player.offline = true;
+      // 如果是当前玩家回合，房主决定
+      if (currentRoom.currentPlayer === player.orderId) {
+        currentRoom.waitingReconnect = true;
+        currentRoom.pendingOfflineOrderId = player.orderId;
+        currentRoom.lastActivity = Date.now();
         
-        broadcast(currentRoom, {
-          type: 'playerOffline',
-          playerName: playerName,
-          orderId: player.orderId
-        });
-        
-        // 如果是当前玩家，进入等待重连模式
-        if (currentRoom.currentPlayer === player.orderId) {
-          currentRoom.waitingReconnect = true;
-          currentRoom.lastActivity = Date.now();
-          
-          broadcast(currentRoom, {
-            type: 'waitingReconnect',
-            waitingFor: playerName
+        const owner = currentRoom.players.find(p => p.orderId === currentRoom.players[0]?.orderId);
+        if (owner && owner.ws && owner.ws.readyState === WebSocket.OPEN) {
+          safeSend(owner.ws, {
+            type: 'ownerConfirm',
+            playerName: playerName,
+            orderId: player.orderId
           });
         }
+      }
+    } else {
+      // 游戏未开始，直接移除
+      const idx = currentRoom.players.indexOf(player);
+      if (idx > -1) {
+        currentRoom.players.splice(idx, 1);
         
-        // 如果是房主离开，转移房主
-        if (wasOwner && currentRoom.players.some(p => p.ws && p.ws.readyState === WebSocket.OPEN)) {
-          const newOwner = currentRoom.players.find(p => p.ws && p.ws.readyState === WebSocket.OPEN);
+        if (currentRoom.players.length === 0) {
+          rooms.delete(currentRoom.id);
+        } else {
           broadcast(currentRoom, {
-            type: 'ownerChanged',
-            newOwnerOrderId: newOwner.orderId,
-            newOwnerName: newOwner.name
+            type: 'playerLeft',
+            playerName: playerName,
+            players: currentRoom.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color }))
           });
-        }
-      } else {
-        // 游戏未开始，直接移除
-        const idx = currentRoom.players.indexOf(player);
-        if (idx > -1) {
-          currentRoom.players.splice(idx, 1);
           
-          if (currentRoom.players.length === 0) {
-            rooms.delete(currentRoom.id);
-          } else {
+          if (wasOwner) {
             broadcast(currentRoom, {
-              type: 'playerLeft',
-              playerName: playerName,
-              players: currentRoom.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color }))
+              type: 'ownerChanged',
+              newOwnerOrderId: currentRoom.players[0].orderId,
+              newOwnerName: currentRoom.players[0].name
             });
-            
-            // 房主离开，转移给第一个玩家
-            if (wasOwner) {
-              broadcast(currentRoom, {
-                type: 'ownerChanged',
-                newOwnerOrderId: currentRoom.players[0].orderId,
-                newOwnerName: currentRoom.players[0].name
-              });
-            }
           }
         }
-        currentRoom = null;
-        playerInfo = null;
       }
     }
+    
+    currentRoom = null;
+    playerInfo = null;
   });
 });
 
@@ -499,14 +484,12 @@ setInterval(() => {
   let cleaned = 0;
   
   rooms.forEach((room, roomId) => {
-    // 空房间删除
     if (room.players.length === 0) {
       rooms.delete(roomId);
       cleaned++;
       return;
     }
     
-    // 游戏中的房间，检查是否所有玩家都离线
     if (room.gameStarted) {
       const onlineCount = room.players.filter(p => p.ws && p.ws.readyState === WebSocket.OPEN).length;
       
@@ -523,12 +506,11 @@ setInterval(() => {
         room.waitingReconnect = false;
         
         if (room.players.length > 0) {
-          // 继续游戏
-          const onlinePlayers = room.players;
-          room.currentPlayer = onlinePlayers[0].orderId;
-          
+          room.currentPlayer = room.players[0].orderId;
           broadcast(room, {
-            type: 'offlineSkipped',
+            type: 'playerRemoved',
+            playerName: '离线玩家',
+            players: room.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color })),
             currentPlayer: room.currentPlayer
           });
         } else {

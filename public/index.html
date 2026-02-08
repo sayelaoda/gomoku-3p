@@ -167,7 +167,7 @@
       font-weight: bold;
     }
     .turn-indicator.waiting { background: #6c757d; }
-    .turn-indicator.offline { background: #f39c12; }
+    .turn-indicator.paused { background: #f39c12; }
     
     .chat-container { height: 300px; overflow-y: auto; background: #f8f9fa; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
     .chat-message { margin-bottom: 8px; padding: 8px 12px; border-radius: 8px; background: white; }
@@ -284,15 +284,6 @@
         <div class="action-buttons">
           <button class="btn btn-warning" onclick="leaveGameToHome()">返回主页</button>
         </div>
-        
-        <!-- 等待重连UI -->
-        <div id="waitingReconnectUI" style="display:none; margin-top: 16px; padding: 16px; background: #fff3cd; border-radius: 8px; text-align: center;">
-          <p style="color: #856404; margin-bottom: 12px;">⚠️ 等待 <span id="waitingPlayerName"></span> 重连中...</p>
-          <div class="modal-buttons" style="justify-content: center;">
-            <button class="btn btn-success" onclick="continueWaiting()" style="width: auto; padding: 10px 20px;">继续等待</button>
-            <button class="btn btn-danger" onclick="skipOffline()" style="width: auto; padding: 10px 20px;">跳过该玩家</button>
-          </div>
-        </div>
       </div>
     </div>
     
@@ -330,6 +321,18 @@
       <button class="btn btn-warning" onclick="closeModal()">返回房间</button>
     </div>
   </div>
+  
+  <!-- 房主确认弹窗 -->
+  <div id="ownerConfirmModal" class="modal">
+    <div class="modal-content">
+      <h2>玩家离线</h2>
+      <p id="ownerConfirmMsg" style="margin: 20px 0; color: #666;">玩家 XXX 离线了，是否等待重连？</p>
+      <div class="modal-buttons">
+        <button class="btn btn-success" onclick="ownerContinueWaiting()">继续等待</button>
+        <button class="btn btn-danger" onclick="ownerSkipPlayer()">移除玩家</button>
+      </div>
+    </div>
+  </div>
 
   <script>
     const PLAYER_ROLES = ['黑棋', '白棋', '红棋', '蓝棋', '绿棋', '黄棋', '紫棋', '橙棋', '粉棋', '青棋'];
@@ -343,7 +346,7 @@
     let currentRoomId = null;
     let players = [];
     let currentTurn = null;
-    let waitingReconnect = false;
+    let pendingOfflineOrderId = null;
     
     function connect() {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -377,12 +380,12 @@
           myColorId = msg.colorId;
           ownerOrderId = msg.ownerOrderId;
           players = msg.players;
-          // 保存颜色到本地
           localStorage.setItem('gomoku_colorId', msg.colorId);
           switchScreen('roomScreen');
           document.getElementById('roomIdDisplay').textContent = msg.roomId;
           document.getElementById('homeSidebar').style.display = 'none';
           document.getElementById('gameSidebar').style.display = 'none';
+          clearChat();
           updatePlayerList();
           updateColorPicker();
           setTimeout(refreshRoomList, 100);
@@ -399,6 +402,12 @@
           }
           break;
           
+        case 'ownerChanged':
+          ownerOrderId = msg.newOwnerOrderId;
+          addSystemMessage('新房主: ' + msg.newOwnerName);
+          updatePlayerList();
+          break;
+          
         case 'gameStart':
           switchScreen('gameScreen');
           document.getElementById('gameRoomIdDisplay').textContent = currentRoomId;
@@ -406,8 +415,7 @@
           document.getElementById('gameSidebar').style.display = 'block';
           initBoard();
           currentTurn = 0;
-          waitingReconnect = false;
-          document.getElementById('waitingReconnectUI').style.display = 'none';
+          clearChat();
           updateGame();
           addSystemMessage('游戏开始！按加入顺序下棋');
           break;
@@ -415,8 +423,6 @@
         case 'move':
           placePiece(msg.row, msg.col, msg.colorId);
           currentTurn = msg.currentPlayer;
-          waitingReconnect = false;
-          document.getElementById('waitingReconnectUI').style.display = 'none';
           updateTurn();
           if (msg.gameOver) {
             showWinner(msg.winner);
@@ -427,42 +433,29 @@
           addSystemMessage(msg.playerName + ' 离线了');
           break;
           
-        case 'waitingReconnect':
-          waitingReconnect = true;
-          document.getElementById('waitingPlayerName').textContent = msg.waitingFor;
-          document.getElementById('waitingReconnectUI').style.display = 'block';
-          addSystemMessage('等待 ' + msg.waitingFor + ' 重连中...');
-          break;
-          
-        case 'playerReconnectRequest':
-          // 房主收到重连请求
-          if (confirm(msg.playerName + ' 尝试重连，是否允许？')) {
-            safeSend({ type: 'continueGame', orderId: myOrderId });
-          } else {
-            safeSend({ type: 'skipOffline', orderId: myOrderId });
+        case 'ownerConfirm':
+          // 房主收到确认弹窗
+          if (myOrderId === ownerOrderId) {
+            pendingOfflineOrderId = msg.orderId;
+            document.getElementById('ownerConfirmMsg').textContent = '玩家 ' + msg.playerName + ' 离线了，是否等待重连？';
+            document.getElementById('ownerConfirmModal').style.display = 'flex';
           }
           break;
           
         case 'playerReconnected':
-          waitingReconnect = false;
-          document.getElementById('waitingReconnectUI').style.display = 'none';
           players = msg.players;
           addSystemMessage(msg.playerName + ' 已重连！');
           updateTurn();
           break;
           
-        case 'gameContinued':
-          waitingReconnect = false;
-          document.getElementById('waitingReconnectUI').style.display = 'none';
-          addSystemMessage('继续游戏！');
-          updateTurn();
+        case 'gameResumed':
+          addSystemMessage(msg.message);
           break;
           
-        case 'offlineSkipped':
-          waitingReconnect = false;
-          document.getElementById('waitingReconnectUI').style.display = 'none';
+        case 'playerRemoved':
+          players = msg.players;
           currentTurn = msg.currentPlayer;
-          addSystemMessage('已跳过离线玩家，继续游戏');
+          addSystemMessage(msg.playerName + ' 已被移除');
           updateTurn();
           break;
           
@@ -477,7 +470,7 @@
           document.getElementById('gameRoomIdDisplay').textContent = msg.roomId;
           document.getElementById('homeSidebar').style.display = 'none';
           document.getElementById('gameSidebar').style.display = 'block';
-          document.getElementById('waitingReconnectUI').style.display = 'none';
+          clearChat();
           
           // 恢复棋盘
           initBoard();
@@ -498,8 +491,7 @@
         case 'restart':
           initBoard();
           currentTurn = 0;
-          waitingReconnect = false;
-          document.getElementById('waitingReconnectUI').style.display = 'none';
+          clearChat();
           updateTurn();
           addSystemMessage('游戏重新开始！');
           break;
@@ -527,6 +519,10 @@
       document.getElementById(screenId).classList.add('active');
     }
     
+    function clearChat() {
+      document.getElementById('chatMessages').innerHTML = '';
+    }
+    
     function createRoom() {
       const playerName = document.getElementById('playerName').value.trim() || '玩家1';
       safeSend({ type: 'create', playerName });
@@ -537,7 +533,6 @@
       if (!playerName) {
         playerName = localStorage.getItem('gomoku_playerName') || '玩家' + Date.now() % 1000;
       }
-      // 从本地存储获取上次选的颜色
       const savedColorId = parseInt(localStorage.getItem('gomoku_colorId') || '0');
       safeSend({ type: 'join', roomId, playerName, colorId: savedColorId });
     }
@@ -619,7 +614,6 @@
     }
     
     function makeMove(row, col) {
-      if (waitingReconnect) return;
       if (myOrderId !== currentTurn) return;
       const cell = document.querySelector('.cell[data-row="' + row + '"][data-col="' + col + '"]');
       if (cell && cell.querySelector('.piece')) return;
@@ -650,17 +644,10 @@
       
       if (player) {
         const isMyTurn = player.orderId === myOrderId;
-        const isWaiting = waitingReconnect && player.orderId !== myOrderId;
-        
-        if (isWaiting) {
-          turnIndicator.className = 'turn-indicator offline';
-          turnIndicator.innerHTML = '⚠️ 等待 ' + player.name + ' 重连...';
-        } else {
-          turnIndicator.className = isMyTurn ? 'turn-indicator' : 'turn-indicator waiting';
-          turnIndicator.innerHTML = isMyTurn 
-            ? '轮到你了！(' + player.role + ')'
-            : '等待 ' + player.name + ' 下棋 (' + player.role + ')';
-        }
+        turnIndicator.className = isMyTurn ? 'turn-indicator' : 'turn-indicator waiting';
+        turnIndicator.innerHTML = isMyTurn 
+          ? '轮到你了！(' + player.role + ')'
+          : '等待 ' + player.name + ' 下棋 (' + player.role + ')';
       }
     }
     
@@ -677,16 +664,19 @@
     
     function closeModal() {
       document.getElementById('winnerModal').style.display = 'none';
+      document.getElementById('ownerConfirmModal').style.display = 'none';
     }
     
     // 房主继续等待
-    function continueWaiting() {
-      safeSend({ type: 'continueGame', orderId: myOrderId });
+    function ownerContinueWaiting() {
+      safeSend({ type: 'ownerDecision', orderId: myOrderId, continueWaiting: true });
+      document.getElementById('ownerConfirmModal').style.display = 'none';
     }
     
-    // 房主跳过离线玩家
-    function skipOffline() {
-      safeSend({ type: 'skipOffline', orderId: myOrderId });
+    // 房主移除离线玩家
+    function ownerSkipPlayer() {
+      safeSend({ type: 'ownerDecision', orderId: myOrderId, continueWaiting: false });
+      document.getElementById('ownerConfirmModal').style.display = 'none';
     }
     
     function leaveCurrentRoom() {
@@ -709,7 +699,6 @@
       currentRoomId = null;
       myOrderId = null;
       players = [];
-      waitingReconnect = false;
       switchScreen('menuScreen');
       document.getElementById('homeSidebar').style.display = 'block';
       document.getElementById('gameSidebar').style.display = 'none';
