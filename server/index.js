@@ -133,7 +133,7 @@ wss.on('connection', (ws) => {
               colorId: offlinePlayer.colorId,
               board: room.board,
               currentPlayer: room.currentPlayer,
-              ownerOrderId: room.players.find(p => p.isOwner)?.orderId,
+              ownerOrderId: room.players.find(p => p.isOwner)?.orderId ?? room.players[0]?.orderId ?? 0,
               players: room.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color, online: p.ws && p.ws.readyState === WebSocket.OPEN }))
             });
             
@@ -141,7 +141,7 @@ wss.on('connection', (ws) => {
             broadcast(room, {
               type: 'playerReconnected',
               playerName: offlinePlayer.name,
-              ownerOrderId: room.players.find(p => p.isOwner)?.orderId,
+              ownerOrderId: room.players.find(p => p.isOwner)?.orderId ?? room.players[0]?.orderId ?? 0,
               players: room.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color, online: p.ws && p.ws.readyState === WebSocket.OPEN }))
             });
           } else {
@@ -173,7 +173,7 @@ wss.on('connection', (ws) => {
             roomId: room.id, 
             orderId: existingPlayer.orderId,
             colorId: existingPlayer.colorId,
-            ownerOrderId: room.players.find(p => p.isOwner)?.orderId,
+            ownerOrderId: room.players.find(p => p.isOwner)?.orderId ?? room.players[0]?.orderId ?? 0,
             players: room.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color }))
           });
           
@@ -181,7 +181,7 @@ wss.on('connection', (ws) => {
           broadcast(room, {
             type: 'playerReconnected',
             playerName: existingPlayer.name,
-            ownerOrderId: room.players.find(p => p.isOwner)?.orderId,
+            ownerOrderId: room.players.find(p => p.isOwner)?.orderId ?? room.players[0]?.orderId ?? 0,
             players: room.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color }))
           }, ws);
           return;
@@ -220,7 +220,7 @@ wss.on('connection', (ws) => {
           roomId: room.id, 
           orderId: player.orderId,
           colorId: player.colorId,
-          ownerOrderId: room.players.find(p => p.isOwner)?.orderId,
+          ownerOrderId: room.players.find(p => p.isOwner)?.orderId ?? room.players[0]?.orderId ?? 0,
           players: room.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color }))
         });
         
@@ -278,7 +278,7 @@ wss.on('connection', (ws) => {
               waitingReconnect: false,
               players: currentRoom.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color })),
               currentPlayer: currentRoom.currentPlayer,
-              ownerOrderId: currentRoom.players.find(p => p.isOwner)?.orderId
+              ownerOrderId: currentRoom.players.find(p => p.isOwner)?.orderId ?? currentRoom.players[0]?.orderId ?? 0
             });
           }
         }
@@ -303,7 +303,7 @@ wss.on('connection', (ws) => {
         broadcast(currentRoom, { 
           type: 'gameStart', 
           currentPlayer: 0,
-          ownerOrderId: currentRoom.players.find(p => p.isOwner)?.orderId,
+          ownerOrderId: currentRoom.players.find(p => p.isOwner)?.orderId ?? currentRoom.players[0]?.orderId ?? 0,
           players: currentRoom.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color }))
         });
         break;
@@ -612,7 +612,7 @@ setInterval(() => {
             waitingReconnect: false,
             players: room.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color })),
             currentPlayer: room.currentPlayer,
-            ownerOrderId: room.players.find(p => p.isOwner)?.orderId
+            ownerOrderId: room.players.find(p => p.isOwner)?.orderId ?? room.players[0]?.orderId ?? 0
           });
         } else {
           rooms.delete(roomId);

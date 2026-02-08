@@ -349,6 +349,10 @@
     let waitingReconnect = false;
     let pendingOfflineOrderId = null;
     
+    function getFirstPlayerOrderId() {
+      return players.length > 0 ? (players[0]?.orderId ?? 0) : 0;
+    }
+    
     function connect() {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       ws = new WebSocket(protocol + '//' + window.location.host);
