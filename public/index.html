@@ -317,7 +317,9 @@
     <div class="modal-content">
       <h2>游戏结束！</h2>
       <div id="winnerInfo"></div>
-      <button class="btn btn-success" onclick="closeModal(); restartGame();" style="margin-top:20px;">再来一局</button>
+      <div id="restartBtnContainer" style="margin-top:20px;">
+        <button class="btn btn-success" id="restartBtn" onclick="closeModal(); restartGame();" style="display:none;">再来一局</button>
+      </div>
       <button class="btn btn-warning" onclick="closeModal()">返回房间</button>
     </div>
   </div>
@@ -707,6 +709,11 @@
     function showWinner(winnerOrderId) {
       const winner = (players || []).find(p => p.orderId === winnerOrderId);
       document.getElementById('winnerInfo').innerHTML = '<p style="font-size:24px;margin-bottom:10px;">🏆 ' + (winner ? winner.name : '未知') + ' 获胜！</p><p>(' + (winner ? winner.role : '') + ')</p>';
+      
+      // 只有房主看到再来一局按钮
+      const isOwner = myOrderId === ownerOrderId;
+      document.getElementById('restartBtn').style.display = isOwner ? 'inline-block' : 'none';
+      
       document.getElementById('winnerModal').style.display = 'flex';
     }
     

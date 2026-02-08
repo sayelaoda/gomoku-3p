@@ -260,8 +260,8 @@ wss.on('connection', (ws) => {
             // 如果移除的是当前玩家，找到下一个玩家
             if (removedWasCurrent && currentRoom.players.length > 0) {
               const removedIdx = currentRoom.players.findIndex(p => p.orderId === offlineOrderId);
-              const nextIdx = removedIdx % currentRoom.players.length;
-              currentRoom.currentPlayer = currentRoom.players[nextIdx].orderId;
+              const nextIdx = removedIdx === -1 ? 0 : (removedIdx % currentRoom.players.length);
+              currentRoom.currentPlayer = currentRoom.players[nextIdx] ? currentRoom.players[nextIdx].orderId : 0;
             }
             
             broadcast(currentRoom, {
@@ -354,8 +354,10 @@ wss.on('connection', (ws) => {
         } else {
           // currentPlayer是orderId，需要找到索引再+1
           const currentIdx = currentRoom.players.findIndex(p => p.orderId === msg.orderId);
-          const nextIdx = (currentIdx + 1) % currentRoom.players.length;
-          currentRoom.currentPlayer = currentRoom.players[nextIdx].orderId;
+          if (currentIdx !== -1 && currentRoom.players.length > 1) {
+            const nextIdx = (currentIdx + 1) % currentRoom.players.length;
+            currentRoom.currentPlayer = currentRoom.players[nextIdx] ? currentRoom.players[nextIdx].orderId : 0;
+          }
           moveData.currentPlayer = currentRoom.currentPlayer;
         }
         
@@ -372,6 +374,28 @@ wss.on('connection', (ws) => {
           playerName: playerInfo.name,
           message: msg.message
         });
+        break;
+      }
+      
+      case 'restart': {
+        if (!currentRoom) return;
+        // 只有房主可以发起restart
+        const player = currentRoom.players.find(p => p.ws === ws);
+        if (!player || !player.isOwner) {
+          safeSend(ws, { type: 'error', message: '只有房主可以发起再来一局' });
+          return;
+        }
+        
+        // 重置游戏
+        currentRoom.gameStarted = true;
+        currentRoom.currentPlayer = 0;
+        currentRoom.board = Array(15).fill(null).map(() => Array(15).fill(0));
+        currentRoom.history = [];
+        currentRoom.winner = null;
+        currentRoom.waitingReconnect = false;
+        currentRoom.pendingOfflineOrderId = null;
+        
+        broadcast(currentRoom, { type: 'restart' });
         break;
       }
       
@@ -395,6 +419,9 @@ wss.on('connection', (ws) => {
         const wasOwner = player.isOwner;
         const playerName = player.name;
         const playerOrderId = player.orderId;
+        
+        // 先把ws设为null，防止onClose重复处理
+        player.ws = null;
         
         if (currentRoom.gameStarted) {
           player.ws = null;
@@ -469,6 +496,7 @@ wss.on('connection', (ws) => {
   ws.on('close', () => {
     if (!currentRoom || !playerInfo) return;
     
+    // 如果ws已经是null，说明leave消息已经处理过了
     const player = currentRoom.players.find(p => p.ws === ws);
     if (!player) return;
     
@@ -584,11 +612,12 @@ setInterval(() => {
             // 找到下一个玩家
             const offlineOrderId = room.pendingOfflineOrderId;
             const removedIdx = room.players.findIndex(p => p.orderId === offlineOrderId);
+            let nextIdx;
             if (removedIdx !== -1) {
-              const nextIdx = removedIdx % room.players.length;
-              room.currentPlayer = room.players[nextIdx].orderId;
+              nextIdx = removedIdx % room.players.length;
+              room.currentPlayer = room.players[nextIdx] ? room.players[nextIdx].orderId : (room.players[0] ? room.players[0].orderId : 0);
             } else {
-              room.currentPlayer = room.players[0].orderId;
+              room.currentPlayer = room.players[0] ? room.players[0].orderId : 0;
             }
           }
           
