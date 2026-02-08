@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>棋类游戏合集</title>
+  <title>多人五子棋</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       min-height: 100vh;
       display: flex;
       justify-content: center;
@@ -17,8 +17,8 @@
     }
     
     .container { display: flex; gap: 20px; max-width: 1400px; width: 100%; }
-    .main-panel {
-      background: #f5f0e1;
+    .game-panel {
+      background: white;
       border-radius: 16px;
       padding: 30px;
       box-shadow: 0 20px 60px rgba(0,0,0,0.3);
@@ -37,40 +37,11 @@
     }
     
     h1 { text-align: center; color: #333; margin-bottom: 20px; }
-    h2 { color: #333; margin-bottom: 16px; }
-    h3 { color: #555; margin-bottom: 12px; }
     
-    .game-select {
-      display: flex;
-      gap: 16px;
-      margin-bottom: 24px;
-    }
-    
-    .game-card {
-      flex: 1;
-      padding: 20px;
-      border-radius: 12px;
-      cursor: pointer;
-      text-align: center;
-      transition: all 0.3s;
-      border: 3px solid transparent;
-    }
-    
-    .game-card.gomoku {
-      background: linear-gradient(135deg, #2d5016 0%, #1a3009 100%);
-      color: white;
-    }
-    
-    .game-card.go {
-      background: linear-gradient(135deg, #8b7355 0%, #5c4033 100%);
-      color: white;
-    }
-    
-    .game-card:hover { transform: translateY(-4px); }
-    .game-card.selected { border-color: #ffd700; transform: translateY(-4px); box-shadow: 0 8px 20px rgba(255,215,0,0.3); }
-    .game-card .game-icon { font-size: 48px; margin-bottom: 8px; }
-    .game-card .game-name { font-size: 18px; font-weight: bold; }
-    .game-card .game-desc { font-size: 12px; opacity: 0.8; margin-top: 4px; }
+    .rules { background: #f8f9fa; border-radius: 12px; padding: 16px; margin-bottom: 20px; }
+    .rules h3 { margin-bottom: 12px; color: #333; }
+    .rules ul { padding-left: 20px; color: #666; }
+    .rules li { margin-bottom: 6px; }
     
     .form-group { margin-bottom: 16px; }
     .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: #333; }
@@ -100,7 +71,6 @@
     .btn-warning { background: linear-gradient(135deg, #f093fb, #f5576c); color: white; }
     .btn-danger { background: linear-gradient(135deg, #eb3349, #f45c43); color: white; }
     .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-    .btn-pass { background: linear-gradient(135deg, #4facfe, #00f2fe); color: white; }
     
     .color-picker { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
     
@@ -128,70 +98,38 @@
     .room-item:hover { background: #e9ecef; }
     .room-id { font-weight: bold; font-family: monospace; font-size: 16px; color: #667eea; }
     .room-count { color: #666; font-size: 14px; }
-    .room-game { font-size: 12px; padding: 2px 8px; border-radius: 4px; margin-left: 8px; }
-    .room-game.gomoku { background: #2d5016; color: white; }
-    .room-game.go { background: #8b7355; color: white; }
     .join-btn-small { padding: 6px 12px; font-size: 12px; background: #667eea; color: white; border: none; border-radius: 4px; }
     
-    /* 五子棋棋盘 */
-    .gomoku-board {
+    .game-board {
       display: grid;
       grid-template-columns: repeat(15, 1fr);
       gap: 1px;
-      background: #8b7355;
+      background: #d4a574;
       padding: 10px;
       border-radius: 8px;
       margin: 0 auto 20px;
-      max-width: 480px;
-      aspect-ratio: 1;
+      max-width: 500px;
     }
     
-    /* 围棋棋盘 */
-    .go-board {
-      display: grid;
-      grid-template-columns: repeat(9, 1fr);
-      gap: 1px;
-      background: #dcb35c;
-      padding: 10px;
-      border-radius: 8px;
-      margin: 0 auto 20px;
-      max-width: 400px;
-      aspect-ratio: 1;
-    }
-    
-    .cell { 
-      aspect-ratio: 1; 
-      position: relative;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    
-    .gomoku-board .cell { background: #dcb35c; }
-    .gomoku-board .cell:hover { background: #c9a54a; }
-    .go-board .cell { background: #dcb35c; }
-    .go-board .cell:hover { background: #c9a54a; }
-    
-    /* 围棋星位 */
-    .go-board .cell.star::before {
-      content: '';
-      position: absolute;
-      width: 8px;
-      height: 8px;
-      background: #5c4033;
-      border-radius: 50%;
-    }
+    .cell { aspect-ratio: 1; background: #e8c39e; border-radius: 2px; cursor: pointer; }
+    .cell:hover { background: #d4a574; }
     
     .piece {
       width: 85%;
       height: 85%;
       border-radius: 50%;
-      box-shadow: 2px 2px 4px rgba(0,0,0,0.4);
+      box-shadow: 2px 2px 4px rgba(0,0,0,0.3);
     }
-    .piece.black { background: radial-gradient(circle at 30% 30%, #444, #000); }
-    .piece.white { background: radial-gradient(circle at 30% 30%, #fff, #ddd); }
+    .piece.black { background: radial-gradient(circle at 30% 30%, #666, #000); }
+    .piece.white { background: radial-gradient(circle at 30% 30%, #fff, #ccc); }
     .piece.red { background: radial-gradient(circle at 30% 30%, #ff6b6b, #c00); }
+    .piece.blue { background: radial-gradient(circle at 30% 30%, #74b9ff, #0984e3); }
+    .piece.green { background: radial-gradient(circle at 30% 30%, #55efc4, #00b894); }
+    .piece.yellow { background: radial-gradient(circle at 30% 30%, #ffeaa7, #fdcb6e); }
+    .piece.purple { background: radial-gradient(circle at 30% 30%, #a29bfe, #6c5ce7); }
+    .piece.orange { background: radial-gradient(circle at 30% 30%, #fab1a0, #e17055); }
+    .piece.pink { background: radial-gradient(circle at 30% 30%, #fd79a8, #e84393); }
+    .piece.cyan { background: radial-gradient(circle at 30% 30%, #81ecec, #00cec9); }
     
     .player-list { background: #f8f9fa; border-radius: 12px; padding: 16px; margin-bottom: 20px; }
     
@@ -218,15 +156,6 @@
     }
     .player-name { flex: 1; font-weight: 600; }
     .player-color { width: 24px; height: 24px; border-radius: 50%; border: 2px solid #ddd; }
-    .player-score { 
-      background: #ffd700; 
-      color: #333; 
-      padding: 2px 8px; 
-      border-radius: 10px; 
-      font-size: 12px; 
-      font-weight: bold;
-      margin-left: 8px;
-    }
     
     .turn-indicator {
       text-align: center;
@@ -240,39 +169,7 @@
     .turn-indicator.waiting { background: #6c757d; }
     .turn-indicator.paused { background: #f39c12; }
     
-    .score-board {
-      display: flex;
-      justify-content: space-around;
-      margin-bottom: 16px;
-      padding: 12px;
-      background: #f8f9fa;
-      border-radius: 8px;
-    }
-    
-    .score-item {
-      text-align: center;
-    }
-    
-    .score-color {
-      width: 24px;
-      height: 24px;
-      border-radius: 50%;
-      margin: 0 auto 4px;
-      border: 2px solid #333;
-    }
-    
-    .score-value {
-      font-size: 20px;
-      font-weight: bold;
-      color: #333;
-    }
-    
-    .score-target {
-      font-size: 12px;
-      color: #666;
-    }
-    
-    .chat-container { height: 200px; overflow-y: auto; background: #f8f9fa; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+    .chat-container { height: 300px; overflow-y: auto; background: #f8f9fa; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
     .chat-message { margin-bottom: 8px; padding: 8px 12px; border-radius: 8px; background: white; }
     .chat-message.system { background: #e9ecef; color: #666; font-size: 14px; text-align: center; }
     
@@ -313,66 +210,34 @@
       border-bottom: 2px solid #f0f0f0;
     }
     
-    .room-id-badge { 
-      padding: 8px 16px; 
-      border-radius: 8px; 
-      font-family: monospace; 
-      font-size: 18px; 
-      color: white;
-    }
-    .room-id-badge.gomoku { background: #2d5016; }
-    .room-id-badge.go { background: #8b7355; }
+    .room-id-badge { background: #667eea; color: white; padding: 8px 16px; border-radius: 8px; font-family: monospace; font-size: 18px; }
     
     .my-piece-info { text-align: center; padding: 12px; background: #f8f9fa; border-radius: 8px; margin-top: 16px; }
-    .my-piece-color { display: inline-block; width: 24px; height: 24px; border-radius: 50%; vertical-align: middle; margin: 0 8px; border: 2px solid #333; }
+    .my-piece-color { display: inline-block; width: 24px; height: 24px; border-radius: 50%; vertical-align: middle; margin: 0 8px; border: 2px solid #ddd; }
     
     .action-buttons { display: flex; gap: 10px; margin-top: 16px; }
     .action-buttons .btn { margin-bottom: 0; flex: 1; }
     
-    .pass-btn { 
-      background: linear-gradient(135deg, #4facfe, #00f2fe); 
-      color: white;
-      padding: 12px;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: bold;
-      margin-top: 10px;
-    }
-    .pass-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    
-    .winner-badge {
-      font-size: 48px;
-      margin-bottom: 10px;
-    }
-    
-    .hidden { display: none !important; }
-    
     @media (max-width: 900px) {
       .container { flex-direction: column; }
       .sidebar { width: 100%; max-height: none; }
-      .game-select { flex-direction: column; }
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="main-panel">
-      <h1>🎮 棋类游戏合集</h1>
+    <div class="game-panel">
+      <h1>多人五子棋</h1>
       
-      <!-- 选择游戏 -->
-      <div id="selectScreen" class="screen active">
-        <div class="game-select">
-          <div class="game-card gomoku selected" onclick="selectGame('gomoku')" id="gomokuCard">
-            <div class="game-icon">🐕</div>
-            <div class="game-name">多人五子棋</div>
-            <div class="game-desc">15路棋盘 · 连5获胜</div>
-          </div>
-          <div class="game-card go" onclick="selectGame('go')" id="goCard">
-            <div class="game-icon">⚫</div>
-            <div class="game-name">三人围棋</div>
-            <div class="game-desc">9路棋盘 · 提子得分</div>
-          </div>
+      <div id="menuScreen" class="screen active">
+        <div class="rules">
+          <h3>游戏规则</h3>
+          <ul>
+            <li>3-10人轮流下棋</li>
+            <li>连成5子获胜</li>
+            <li>按加入顺序下棋</li>
+            <li>可以自由选择棋子颜色</li>
+          </ul>
         </div>
         
         <div class="form-group">
@@ -381,24 +246,8 @@
         </div>
         
         <button class="btn btn-success" onclick="createRoom()">创建房间</button>
-        
-        <div style="margin-top: 20px;">
-          <h3>游戏规则</h3>
-          <div id="gomokuRules" style="background: #f8f9fa; padding: 16px; border-radius: 8px; margin-top: 12px;">
-            <p>• 2人对战，轮流下棋</p>
-            <p>• 先连成5子获胜</p>
-            <p>• 吃子规则：周围无气的棋子被提掉</p>
-          </div>
-          <div id="goRules" class="hidden" style="background: #f8f9fa; padding: 16px; border-radius: 8px; margin-top: 12px;">
-            <p>• 3人轮流下棋</p>
-            <p>• 周围无气的棋子被提掉</p>
-            <p>• 提子得1分，先得20分者获胜</p>
-            <p>• 无处落子时得分多者获胜</p>
-          </div>
-        </div>
       </div>
       
-      <!-- 房间等待 -->
       <div id="roomScreen" class="screen">
         <div class="room-header">
           <span class="room-id-badge" id="roomIdDisplay">ROOM</span>
@@ -406,7 +255,7 @@
         </div>
         
         <div class="player-list">
-          <h4 style="margin-bottom: 12px;">玩家列表 <span id="playerCount">(0/3)</span></h4>
+          <h4 style="margin-bottom: 12px;">玩家列表 <span id="playerCount">(0/10)</span></h4>
           <div id="playerList"></div>
         </div>
         
@@ -418,31 +267,19 @@
         <button class="btn btn-primary" id="startBtn" onclick="startGame()" style="display:none;">开始游戏</button>
       </div>
       
-      <!-- 游戏界面 -->
       <div id="gameScreen" class="screen">
         <div class="room-header">
           <span class="room-id-badge" id="gameRoomIdDisplay">ROOM</span>
           <div id="currentTurn" class="turn-indicator waiting">等待开始...</div>
         </div>
         
-        <div class="score-board" id="scoreBoard"></div>
-        
-        <div id="gomokuBoardContainer">
-          <div class="gomoku-board" id="gomokuBoard"></div>
-        </div>
-        
-        <div id="goBoardContainer" class="hidden">
-          <div class="go-board" id="goBoard"></div>
-        </div>
+        <div class="game-board" id="gameBoard"></div>
         
         <div id="myPieceInfo" class="my-piece-info">
           <span>你的棋子：</span>
           <span id="myPieceColor" class="my-piece-color"></span>
           <span id="myPieceName"></span>
-          <span>（得分：<span id="myScore">0</span>）</span>
         </div>
-        
-        <button class="pass-btn" id="passBtn" onclick="passTurn()" style="display:none;">停一手</button>
         
         <div class="action-buttons">
           <button class="btn btn-warning" onclick="leaveGameToHome()">返回主页</button>
@@ -478,38 +315,45 @@
   <!-- 获胜弹窗 -->
   <div id="winnerModal" class="modal">
     <div class="modal-content">
-      <div class="winner-badge">🏆</div>
-      <h2 id="winnerTitle">游戏结束！</h2>
+      <h2>游戏结束！</h2>
       <div id="winnerInfo"></div>
-      <button class="btn btn-success" onclick="closeModal(); restartGame();" style="margin-top:20px;">再来一局</button>
+      <div id="restartBtnContainer" style="margin-top:20px;">
+        <button class="btn btn-success" id="restartBtn" onclick="closeModal(); restartGame();" style="display:none;">再来一局</button>
+      </div>
       <button class="btn btn-warning" onclick="closeModal()">返回房间</button>
+    </div>
+  </div>
+  
+  <!-- 房主确认弹窗 -->
+  <div id="ownerConfirmModal" class="modal">
+    <div class="modal-content">
+      <h2>玩家离线</h2>
+      <p id="ownerConfirmMsg" style="margin: 20px 0; color: #666;">玩家 XXX 离线了，是否等待重连？</p>
+      <div class="modal-buttons">
+        <button class="btn btn-success" onclick="ownerContinueWaiting()">继续等待</button>
+        <button class="btn btn-danger" onclick="ownerSkipPlayer()">移除玩家</button>
+      </div>
     </div>
   </div>
 
   <script>
-    const PLAYER_ROLES_GOMOKU = ['黑棋', '白棋'];
-    const PLAYER_COLORS_GOMOKU = ['#000000', '#FFFFFF'];
-    const PIECE_CLASSES_GOMOKU = ['black', 'white'];
-    const BOARD_SIZE_GOMOKU = 15;
-    
-    const PLAYER_ROLES_GO = ['黑棋', '白棋', '红棋'];
-    const PLAYER_COLORS_GO = ['#000000', '#FFFFFF', '#FF0000'];
-    const PIECE_CLASSES_GO = ['black', 'white', 'red'];
-    const BOARD_SIZE_GO = 9;
-    const WINNING_SCORE_GO = 20;
+    const PLAYER_ROLES = ['黑棋', '白棋', '红棋', '蓝棋', '绿棋', '黄棋', '紫棋', '橙棋', '粉棋', '青棋'];
+    const PLAYER_COLORS = ['#000000', '#FFFFFF', '#FF0000', '#0984e3', '#00b894', '#fdcb6e', '#6c5ce7', '#e17055', '#e84393', '#00cec9'];
+    const PIECE_CLASSES = ['black', 'white', 'red', 'blue', 'green', 'yellow', 'purple', 'orange', 'pink', 'cyan'];
     
     let ws = null;
     let myOrderId = null;
     let myColorId = null;
     let ownerOrderId = 0;
     let currentRoomId = null;
-    let currentGameMode = 'gomoku';
-    let gameConfig = null;
     let players = [];
     let currentTurn = null;
     let waitingReconnect = false;
     let pendingOfflineOrderId = null;
-    let scores = [];
+    
+    function getFirstPlayerOrderId() {
+      return players.length > 0 ? (players[0]?.orderId ?? 0) : 0;
+    }
     
     function connect() {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -538,56 +382,53 @@
       }
     }
     
-    function selectGame(mode) {
-      currentGameMode = mode;
-      document.querySelectorAll('.game-card').forEach(c => c.classList.remove('selected'));
-      document.getElementById(mode + 'Card').classList.add('selected');
-      document.getElementById('gomokuRules').classList.toggle('hidden', mode !== 'gomoku');
-      document.getElementById('goRules').classList.toggle('hidden', mode !== 'go');
-    }
-    
     function handleMessage(msg) {
       switch (msg.type) {
         case 'created':
         case 'joined':
           currentRoomId = msg.roomId;
-          currentGameMode = msg.gameMode;
-          gameConfig = msg.config;
           myOrderId = msg.orderId;
           myColorId = msg.colorId;
           ownerOrderId = msg.ownerOrderId ?? 0;
           players = msg.players || [];
-          scores = msg.scores || [];
           waitingReconnect = false;
           pendingOfflineOrderId = null;
           localStorage.setItem('gomoku_colorId', msg.colorId);
           switchScreen('roomScreen');
           document.getElementById('roomIdDisplay').textContent = msg.roomId;
-          document.getElementById('roomIdDisplay').className = 'room-id-badge ' + currentGameMode;
           document.getElementById('homeSidebar').style.display = 'none';
           document.getElementById('gameSidebar').style.display = 'none';
           clearChat();
           updatePlayerList();
           updateColorPicker();
-          updateScoreBoard();
           setTimeout(refreshRoomList, 100);
           break;
           
         case 'playerJoined':
           players = msg.players || [];
-          scores = msg.scores || [];
           updatePlayerList();
           updateColorPicker();
-          updateScoreBoard();
           break;
           
         case 'playerLeft':
           players = msg.players || [];
-          scores = msg.scores || [];
           updatePlayerList();
           updateColorPicker();
-          updateScoreBoard();
           addSystemMessage(msg.playerName + ' 离开了房间');
+          break;
+          
+        case 'roomDismissed':
+          alert(msg.message || '房主已离开，房间解散');
+          currentRoomId = null;
+          myOrderId = null;
+          ownerOrderId = 0;
+          players = [];
+          waitingReconnect = false;
+          pendingOfflineOrderId = null;
+          switchScreen('menuScreen');
+          document.getElementById('homeSidebar').style.display = 'block';
+          document.getElementById('gameSidebar').style.display = 'none';
+          refreshRoomList();
           break;
           
         case 'colorChanged':
@@ -600,70 +441,38 @@
           ownerOrderId = msg.newOwnerOrderId ?? 0;
           addSystemMessage('新房主: ' + msg.newOwnerName);
           updatePlayerList();
+          
+          if (msg.offlinePlayerName && myOrderId === ownerOrderId) {
+            pendingOfflineOrderId = msg.offlineOrderId ?? null;
+            document.getElementById('ownerConfirmMsg').textContent = '玩家 ' + msg.offlinePlayerName + ' 离线了，是否等待重连？';
+            document.getElementById('ownerConfirmModal').style.display = 'flex';
+          }
           break;
           
         case 'gameStart':
           switchScreen('gameScreen');
           document.getElementById('gameRoomIdDisplay').textContent = currentRoomId;
-          document.getElementById('gameRoomIdDisplay').className = 'room-id-badge ' + currentGameMode;
           document.getElementById('homeSidebar').style.display = 'none';
           document.getElementById('gameSidebar').style.display = 'block';
-          
-          if (currentGameMode === 'gomoku') {
-            document.getElementById('gomokuBoardContainer').classList.remove('hidden');
-            document.getElementById('goBoardContainer').classList.add('hidden');
-            initGomokuBoard();
-          } else {
-            document.getElementById('gomokuBoardContainer').classList.add('hidden');
-            document.getElementById('goBoardContainer').classList.remove('hidden');
-            initGoBoard();
-          }
-          
-          currentTurn = msg.currentPlayer;
+          initBoard();
+          currentTurn = msg.currentPlayer ?? 0;
           waitingReconnect = false;
           pendingOfflineOrderId = null;
-          scores = msg.scores || [];
           clearChat();
           players = msg.players || [];
-          ownerOrderId = msg.ownerOrderId ?? 0;
-          document.getElementById('passBtn').style.display = currentGameMode === 'go' ? 'inline-block' : 'none';
-          document.getElementById('passBtn').disabled = false;
+          ownerOrderId = msg.ownerOrderId ?? getFirstPlayerOrderId();
           updateGame();
           updatePlayerList();
-          updateScoreBoard();
-          addSystemMessage(currentGameMode === 'gomoku' ? '游戏开始！先连5子者获胜！' : '游戏开始！轮流下棋，提子得1分，先得20分者获胜！');
+          addSystemMessage('游戏开始！按加入顺序下棋');
           break;
           
         case 'move':
           placePiece(msg.row, msg.col, msg.colorId);
-          
-          if (msg.scores) {
-            scores = msg.scores;
-            updateScoreBoard();
-          }
-          
-          if (msg.captured && msg.captured.length > 0) {
-            addSystemMessage('提掉 ' + msg.captured.length + ' 子！');
-          }
-          
+          currentTurn = msg.currentPlayer;
+          updateTurn();
           if (msg.gameOver) {
-            currentTurn = null;
-            document.getElementById('passBtn').style.display = 'none';
-            showWinner(msg.orderId);
-          } else if (msg.currentPlayer !== undefined) {
-            currentTurn = msg.currentPlayer;
-            document.getElementById('passBtn').disabled = currentTurn !== myOrderId;
+            showWinner(msg.winner);
           }
-          updateTurn();
-          break;
-          
-        case 'pass':
-          addSystemMessage(msg.playerName + ' 停了一手');
-          if (msg.currentPlayer !== undefined) {
-            currentTurn = msg.currentPlayer;
-            document.getElementById('passBtn').disabled = currentTurn !== myOrderId;
-          }
-          updateTurn();
           break;
           
         case 'playerOffline':
@@ -672,15 +481,21 @@
           updateTurn();
           break;
           
+        case 'ownerConfirm':
+          if (myOrderId === ownerOrderId) {
+            pendingOfflineOrderId = msg.orderId ?? null;
+            document.getElementById('ownerConfirmMsg').textContent = '玩家 ' + msg.playerName + ' 离线了，是否等待重连？';
+            document.getElementById('ownerConfirmModal').style.display = 'flex';
+          }
+          break;
+          
         case 'playerReconnected':
           waitingReconnect = false;
           pendingOfflineOrderId = null;
           players = msg.players || [];
-          scores = msg.scores || [];
-          ownerOrderId = msg.ownerOrderId ?? 0;
+          ownerOrderId = msg.ownerOrderId ?? getFirstPlayerOrderId();
           addSystemMessage(msg.playerName + ' 已重连！');
           updatePlayerList();
-          updateScoreBoard();
           updateTurn();
           break;
           
@@ -695,45 +510,31 @@
           waitingReconnect = msg.waitingReconnect ?? false;
           pendingOfflineOrderId = null;
           players = msg.players || [];
-          scores = msg.scores || [];
           currentTurn = msg.currentPlayer ?? currentTurn;
-          ownerOrderId = msg.ownerOrderId ?? 0;
+          ownerOrderId = msg.ownerOrderId ?? getFirstPlayerOrderId();
           addSystemMessage(msg.playerName + ' 已被移除');
           updatePlayerList();
-          updateScoreBoard();
           updateTurn();
           break;
           
         case 'rejoined':
           currentRoomId = msg.roomId;
-          currentGameMode = msg.gameMode;
-          gameConfig = msg.config;
           myOrderId = msg.orderId;
           myColorId = msg.colorId;
           currentTurn = msg.currentPlayer;
           waitingReconnect = false;
           pendingOfflineOrderId = null;
-          scores = msg.scores || [];
+          players = msg.players || [];
           switchScreen('gameScreen');
           document.getElementById('gameRoomIdDisplay').textContent = msg.roomId;
-          document.getElementById('gameRoomIdDisplay').className = 'room-id-badge ' + currentGameMode;
           document.getElementById('homeSidebar').style.display = 'none';
           document.getElementById('gameSidebar').style.display = 'block';
           clearChat();
           
-          if (currentGameMode === 'gomoku') {
-            document.getElementById('gomokuBoardContainer').classList.remove('hidden');
-            document.getElementById('goBoardContainer').classList.add('hidden');
-            initGomokuBoard();
-          } else {
-            document.getElementById('gomokuBoardContainer').classList.add('hidden');
-            document.getElementById('goBoardContainer').classList.remove('hidden');
-            initGoBoard();
-          }
-          
+          initBoard();
           if (msg.board) {
-            for (let i = 0; i < (currentGameMode === 'gomoku' ? BOARD_SIZE_GOMOKU : BOARD_SIZE_GO); i++) {
-              for (let j = 0; j < (currentGameMode === 'gomoku' ? BOARD_SIZE_GOMOKU : BOARD_SIZE_GO); j++) {
+            for (let i = 0; i < 15; i++) {
+              for (let j = 0; j < 15; j++) {
                 if (msg.board[i] && msg.board[i][j] !== 0) {
                   const colorId = msg.board[i][j] - 1;
                   placePiece(i, j, colorId);
@@ -748,19 +549,11 @@
           break;
           
         case 'restart':
-          if (currentGameMode === 'gomoku') {
-            initGomokuBoard();
-          } else {
-            initGoBoard();
-          }
+          initBoard();
           currentTurn = 0;
           waitingReconnect = false;
           pendingOfflineOrderId = null;
-          scores = gameConfig?.colors ? Array(gameConfig.colors).fill(0) : [0, 0];
           clearChat();
-          document.getElementById('passBtn').style.display = currentGameMode === 'go' ? 'inline-block' : 'none';
-          document.getElementById('passBtn').disabled = false;
-          updateScoreBoard();
           updateTurn();
           addSystemMessage('游戏重新开始！');
           break;
@@ -790,10 +583,10 @@
     
     function createRoom() {
       const playerName = document.getElementById('playerName').value.trim() || '玩家1';
-      safeSend({ type: 'create', playerName, gameMode: currentGameMode });
+      safeSend({ type: 'create', playerName });
     }
     
-    function joinRoom(roomId, gameMode) {
+    function joinRoom(roomId) {
       let playerName = document.getElementById('playerName').value.trim();
       if (!playerName) {
         playerName = localStorage.getItem('gomoku_playerName') || '玩家' + Date.now() % 1000;
@@ -826,8 +619,7 @@
     }
     
     function updatePlayerList() {
-      const maxPlayers = gameConfig?.colors || 2;
-      document.getElementById('playerCount').textContent = '(' + (players.length || 0) + '/' + maxPlayers + ')';
+      document.getElementById('playerCount').textContent = '(' + (players.length || 0) + '/10)';
       const list = document.getElementById('playerList');
       list.innerHTML = (players || []).map((p, idx) => {
         const isOwner = p.orderId === ownerOrderId;
@@ -839,11 +631,10 @@
       }).join('');
       
       const startBtn = document.getElementById('startBtn');
-      const minPlayers = gameConfig?.minPlayers || 2;
       if (myOrderId === ownerOrderId) {
         startBtn.style.display = 'block';
-        startBtn.disabled = (players || []).length < minPlayers;
-        startBtn.textContent = (players || []).length < minPlayers ? '开始游戏 (还需 ' + (minPlayers - (players || []).length) + ' 人)' : '开始游戏';
+        startBtn.disabled = (players || []).length < 2;
+        startBtn.textContent = (players || []).length < 2 ? '开始游戏 (还需 ' + (2 - (players || []).length) + ' 人)' : '开始游戏';
       } else {
         startBtn.style.display = 'none';
       }
@@ -851,30 +642,13 @@
     
     function updateColorPicker() {
       const takenColors = (players || []).map(p => p.colorId);
-      const colors = currentGameMode === 'gomoku' ? PLAYER_COLORS_GOMOKU : PLAYER_COLORS_GO;
       const picker = document.getElementById('colorPicker');
-      picker.innerHTML = colors.map((color, idx) => {
+      picker.innerHTML = PIECE_CLASSES.map((cls, idx) => {
         const isTaken = takenColors.includes(idx);
         const isSelected = idx === myColorId;
         const action = isTaken ? '' : 'onclick="selectColor(' + idx + ')"';
         return '<div class="color-option ' + (isSelected ? 'selected' : '') + ' ' + (isTaken ? 'disabled' : '') + '" ' +
-          'style="background:' + color + '" ' + action + '></div>';
-      }).join('');
-    }
-    
-    function updateScoreBoard() {
-      const board = document.getElementById('scoreBoard');
-      const colors = currentGameMode === 'gomoku' ? PLAYER_COLORS_GOMOKU : PLAYER_COLORS_GO;
-      const roles = currentGameMode === 'gomoku' ? PLAYER_ROLES_GOMOKU : PLAYER_ROLES_GO;
-      const winningScore = currentGameMode === 'gomoku' ? null : WINNING_SCORE_GO;
-      
-      board.innerHTML = colors.map((color, idx) => {
-        const score = scores[idx] || 0;
-        return '<div class="score-item">' +
-          '<div class="score-color" style="background:' + color + '"></div>' +
-          '<div class="score-value" id="score' + idx + '">' + score + '</div>' +
-          (winningScore ? '<div class="score-target">/' + winningScore + '</div>' : '') +
-          '</div>';
+          'style="background:' + PLAYER_COLORS[idx] + '" ' + action + '></div>';
       }).join('');
     }
     
@@ -882,31 +656,13 @@
       safeSend({ type: 'start' });
     }
     
-    function initGomokuBoard() {
-      const board = document.getElementById('gomokuBoard');
+    function initBoard() {
+      const board = document.getElementById('gameBoard');
       board.innerHTML = '';
-      for (let i = 0; i < BOARD_SIZE_GOMOKU; i++) {
-        for (let j = 0; j < BOARD_SIZE_GOMOKU; j++) {
+      for (let i = 0; i < 15; i++) {
+        for (let j = 0; j < 15; j++) {
           const cell = document.createElement('div');
           cell.className = 'cell';
-          cell.dataset.row = i;
-          cell.dataset.col = j;
-          cell.onclick = () => makeMove(i, j);
-          board.appendChild(cell);
-        }
-      }
-    }
-    
-    function initGoBoard() {
-      const board = document.getElementById('goBoard');
-      board.innerHTML = '';
-      for (let i = 0; i < BOARD_SIZE_GO; i++) {
-        for (let j = 0; j < BOARD_SIZE_GO; j++) {
-          const cell = document.createElement('div');
-          cell.className = 'cell';
-          if ((i === 3 || i === 5) && (j === 3 || j === 5) || (i === 4 && j === 4)) {
-            cell.classList.add('star');
-          }
           cell.dataset.row = i;
           cell.dataset.col = j;
           cell.onclick = () => makeMove(i, j);
@@ -916,25 +672,18 @@
     }
     
     function makeMove(row, col) {
-      if (currentTurn !== myOrderId) return;
+      if (myOrderId !== currentTurn) return;
       if (waitingReconnect) return;
-      const boardEl = currentGameMode === 'gomoku' ? document.getElementById('gomokuBoard') : document.getElementById('goBoard');
-      const cell = boardEl.querySelector('.cell[data-row="' + row + '"][data-col="' + col + '"]');
+      const cell = document.querySelector('.cell[data-row="' + row + '"][data-col="' + col + '"]');
       if (cell && cell.querySelector('.piece')) return;
       safeSend({ type: 'move', orderId: myOrderId, row, col });
     }
     
-    function passTurn() {
-      if (currentTurn !== myOrderId) return;
-      safeSend({ type: 'pass', orderId: myOrderId });
-    }
-    
     function placePiece(row, col, colorId) {
-      const boardEl = currentGameMode === 'gomoku' ? document.getElementById('gomokuBoard') : document.getElementById('goBoard');
-      const cell = boardEl.querySelector('.cell[data-row="' + row + '"][data-col="' + col + '"]');
+      const cell = document.querySelector('.cell[data-row="' + row + '"][data-col="' + col + '"]');
       if (cell && !cell.querySelector('.piece')) {
         const piece = document.createElement('div');
-        piece.className = 'piece ' + (currentGameMode === 'gomoku' ? PIECE_CLASSES_GOMOKU[colorId] : PIECE_CLASSES_GO[colorId]);
+        piece.className = 'piece ' + PIECE_CLASSES[colorId];
         cell.appendChild(piece);
       }
     }
@@ -944,7 +693,6 @@
       if (me) {
         document.getElementById('myPieceColor').style.background = me.color;
         document.getElementById('myPieceName').textContent = me.role;
-        document.getElementById('myScore').textContent = me.score ?? 0;
       }
       updateTurn();
     }
@@ -955,13 +703,6 @@
       if (waitingReconnect) {
         turnIndicator.className = 'turn-indicator paused';
         turnIndicator.innerHTML = '⏸ 等待房主处理...';
-        document.getElementById('passBtn').disabled = true;
-        return;
-      }
-      
-      if (currentTurn === null) {
-        turnIndicator.className = 'turn-indicator waiting';
-        turnIndicator.innerHTML = '游戏结束';
         return;
       }
       
@@ -973,17 +714,20 @@
         turnIndicator.innerHTML = isMyTurn 
           ? '轮到你了！(' + player.role + ')'
           : '等待 ' + player.name + ' 下棋 (' + player.role + ')';
-        document.getElementById('passBtn').disabled = !isMyTurn;
       } else {
         turnIndicator.className = 'turn-indicator waiting';
         turnIndicator.innerHTML = '等待游戏中...';
-        document.getElementById('passBtn').disabled = true;
       }
     }
     
     function showWinner(winnerOrderId) {
       const winner = (players || []).find(p => p.orderId === winnerOrderId);
       document.getElementById('winnerInfo').innerHTML = '<p style="font-size:24px;margin-bottom:10px;">🏆 ' + (winner ? winner.name : '未知') + ' 获胜！</p><p>(' + (winner ? winner.role : '') + ')</p>';
+      
+      // 只有房主看到再来一局按钮
+      const isOwner = myOrderId === ownerOrderId;
+      document.getElementById('restartBtn').style.display = isOwner ? 'inline-block' : 'none';
+      
       document.getElementById('winnerModal').style.display = 'flex';
     }
     
@@ -994,6 +738,17 @@
     
     function closeModal() {
       document.getElementById('winnerModal').style.display = 'none';
+      document.getElementById('ownerConfirmModal').style.display = 'none';
+    }
+    
+    function ownerContinueWaiting() {
+      safeSend({ type: 'ownerDecision', orderId: myOrderId, continueWaiting: true });
+      document.getElementById('ownerConfirmModal').style.display = 'none';
+    }
+    
+    function ownerSkipPlayer() {
+      safeSend({ type: 'ownerDecision', orderId: myOrderId, continueWaiting: false });
+      document.getElementById('ownerConfirmModal').style.display = 'none';
     }
     
     function leaveCurrentRoom() {
@@ -1004,14 +759,11 @@
       myOrderId = null;
       ownerOrderId = 0;
       players = [];
-      scores = [];
       waitingReconnect = false;
       pendingOfflineOrderId = null;
-      gameConfig = null;
-      switchScreen('selectScreen');
+      switchScreen('menuScreen');
       document.getElementById('homeSidebar').style.display = 'block';
       document.getElementById('gameSidebar').style.display = 'none';
-      document.getElementById('passBtn').style.display = 'none';
       refreshRoomList();
     }
     
@@ -1023,14 +775,11 @@
       myOrderId = null;
       ownerOrderId = 0;
       players = [];
-      scores = [];
       waitingReconnect = false;
       pendingOfflineOrderId = null;
-      gameConfig = null;
-      switchScreen('selectScreen');
+      switchScreen('menuScreen');
       document.getElementById('homeSidebar').style.display = 'block';
       document.getElementById('gameSidebar').style.display = 'none';
-      document.getElementById('passBtn').style.display = 'none';
       refreshRoomList();
     }
     
@@ -1046,12 +795,8 @@
       }
       list.innerHTML = rooms.map(r => 
         '<div class="room-item" onclick="joinRoom(\'' + r.id + '\')">' +
-          '<div>' +
-            '<div class="room-id">' + r.id + '</div>' +
-            '<div class="room-count">' + r.playerCount + ' 人</div>' +
-          '</div>' +
-          '<span class="room-game ' + r.gameMode + '">' + (r.gameMode === 'gomoku' ? '五子棋' : '围棋') + '</span>' +
-        '</div>'
+          '<div><div class="room-id">' + r.id + '</div><div class="room-count">' + r.playerCount + ' 人</div></div>' +
+          '<button class="join-btn-small">加入</button></div>'
       ).join('');
     }
     
@@ -1082,22 +827,21 @@
       container.scrollTop = container.scrollHeight;
     }
     
-    // 手机端后台检测
+    // 手机端后台检测 - 只在游戏内生效
     let isInBackground = false;
     document.addEventListener('visibilitychange', function() {
       if (document.hidden) {
-        // 进入后台，自动离开房间
+        // 进入后台
         isInBackground = true;
-        if (currentRoomId && ws && ws.readyState === WebSocket.OPEN) {
+        if (currentRoomId && ws && ws.readyState === WebSocket.OPEN && document.getElementById('gameScreen').classList.contains('active')) {
           ws.send(JSON.stringify({ type: 'leave' }));
-          console.log('页面进入后台，自动离开房间');
+          console.log('游戏内进入后台，自动离开');
         }
       } else {
-        // 切回前台，重新连接
+        // 切回前台
         if (isInBackground && currentRoomId) {
-          console.log('页面切回前台，尝试重连');
+          console.log('切回前台，尝试重连');
           if (ws && ws.readyState === WebSocket.OPEN) {
-            // 重新加入房间
             let playerName = localStorage.getItem('gomoku_playerName') || '玩家' + Date.now() % 1000;
             ws.send(JSON.stringify({ 
               type: 'join', 
@@ -1110,11 +854,10 @@
         isInBackground = false;
       }
     });
-
+    
     window.onload = function() {
       connect();
-      initGomokuBoard();
-      initGoBoard();
+      initBoard();
       setInterval(refreshRoomList, 10000);
     };
   </script>
