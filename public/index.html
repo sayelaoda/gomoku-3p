@@ -522,32 +522,37 @@
     
     // 连接WebSocket
     function connect() {
-      // 支持 Railway 等平台的环境变量配置
-      const wsUrl = window.env?.WS_URL || window.location.host;
+      // Railway需要明确的WebSocket路径
+      const host = window.location.host;
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${host}`;
       
-      // 构建WebSocket URL
-      let wsUrlFull;
-      if (wsUrl.includes('://')) {
-        wsUrlFull = wsUrl.replace(/^http/, 'ws') + '/';
-      } else {
-        wsUrlFull = `${protocol}//${wsUrl}/`;
-      }
+      console.log('Connecting to:', wsUrl);
       
-      console.log('Connecting to:', wsUrlFull);
-      ws = new WebSocket(wsUrlFull);
+      ws = new WebSocket(wsUrl);
+      
+      // 超时保护
+      setTimeout(() => {
+        if (ws.readyState !== WebSocket.OPEN) {
+          console.error('WebSocket连接超时，状态:', ws.readyState);
+        }
+      }, 5000);
       
       ws.onopen = () => {
         console.log('Connected to server');
       };
       
       ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data);
-        handleMessage(msg);
+        try {
+          const msg = JSON.parse(event.data);
+          handleMessage(msg);
+        } catch (e) {
+          console.error('消息解析错误:', e);
+        }
       };
       
-      ws.onclose = () => {
-        console.log('Disconnected from server');
+      ws.onclose = (e) => {
+        console.log('Disconnected from server', e.code, e.reason);
       };
       
       ws.onerror = (error) => {
@@ -557,21 +562,23 @@
     
     // 安全发送WebSocket消息（等待连接建立）
     function safeSend(data) {
+      if (!ws) {
+        console.error('WebSocket未初始化');
+        return;
+      }
+      
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(data));
-      } else {
-        // 等待连接建立，最多等3秒
-        let waitCount = 0;
-        const waitInterval = setInterval(() => {
-          waitCount++;
+      } else if (ws.readyState === WebSocket.CONNECTING) {
+        // 如果正在连接，等待连接成功
+        const checkConnection = setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {
-            clearInterval(waitInterval);
+            clearInterval(checkConnection);
             ws.send(JSON.stringify(data));
-          } else if (waitCount >= 30) { // 3秒后放弃
-            clearInterval(waitInterval);
-            console.error('WebSocket连接超时');
           }
-        }, 100);
+        }, 50);
+      } else {
+        console.error('WebSocket状态异常:', ws.readyState);
       }
     }
     

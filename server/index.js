@@ -5,7 +5,17 @@ const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+
+// WebSocket服务器配置
+const wss = new WebSocket.Server({ 
+  server,
+  path: '/'
+});
+
+// 处理WebSocket升级
+wss.on('connection', (ws, req) => {
+  console.log('New WebSocket connection from:', req.headers.host);
+});
 
 // 静态文件服务
 app.use(express.static(path.join(__dirname, '../public')));
@@ -106,9 +116,20 @@ wss.on('connection', (ws) => {
         // 创建房间
         const roomId = generateRoomId();
         const room = createRoom(ws, roomId, msg.playerName || '玩家1');
+        
+        // 添加房主到房间
+        const player = {
+          id: 0,
+          name: msg.playerName || '玩家1',
+          color: COLORS[0],
+          role: PLAYERS[0],
+          ws: ws
+        };
+        room.players.push(player);
+        
         currentRoom = room;
-        playerInfo = { id: 0, name: msg.playerName || '玩家1' };
-        room.players[0].ws = ws;
+        playerInfo = player;
+        
         ws.send(JSON.stringify({ type: 'created', roomId, playerId: 0 }));
         break;
       }
