@@ -469,34 +469,32 @@ wss.on('connection', (ws) => {
             }
           }
         } else {
+          // 游戏未开始，房主离开则房间解散
+          if (wasOwner) {
+            rooms.delete(currentRoom.id);
+            broadcast(currentRoom, {
+              type: 'playerLeft',
+              playerName: playerName
+            });
+            currentRoom = null;
+            playerInfo = null;
+            return;
+          }
+          
+          // 普通玩家离开
           const idx = currentRoom.players.indexOf(player);
           if (idx > -1) {
             currentRoom.players.splice(idx, 1);
-            
-            if (currentRoom.players.length === 0) {
-              rooms.delete(currentRoom.id);
-            } else {
-              if (wasOwner) {
-                currentRoom.players[0].isOwner = true;
-                broadcast(currentRoom, {
-                  type: 'ownerChanged',
-                  newOwnerOrderId: currentRoom.players[0].orderId,
-                  newOwnerName: currentRoom.players[0].name
-                });
-              }
-              
-              broadcast(currentRoom, {
-                type: 'playerLeft',
-                playerName: playerName,
-                players: currentRoom.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color }))
-              });
-            }
+            broadcast(currentRoom, {
+              type: 'playerLeft',
+              playerName: playerName,
+              players: currentRoom.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color }))
+            });
           }
+          currentRoom = null;
+          playerInfo = null;
+          break;
         }
-        
-        currentRoom = null;
-        playerInfo = null;
-        break;
       }
     }
   });
