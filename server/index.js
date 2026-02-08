@@ -39,7 +39,9 @@ function createRoom(ws, roomId, playerName) {
     currentPlayer: 0, // 0:黑棋, 1:白棋, 2:红棋
     gameStarted: false,
     winner: null,
-    history: [] // 记录每步棋
+    history: [], // 记录每步棋
+    createdAt: Date.now(), // 创建时间
+    lastActivity: Date.now() // 最后活动时间
   };
   
   rooms.set(roomId, room);
@@ -50,9 +52,21 @@ function createRoom(ws, roomId, playerName) {
 function joinRoom(ws, roomId, playerName) {
   const room = rooms.get(roomId);
   if (!room) return { success: false, message: '房间不存在' };
-  if (room.players.length >= 3) return { success: false, message: '房间已满' };
+  
+  // 统计在线玩家
+  const onlinePlayers = room.players.filter(p => p.ws && p.ws.readyState === WebSocket.OPEN);
+  
+  if (onlinePlayers.length >= 3) return { success: false, message: '房间已满' };
   if (room.gameStarted) return { success: false, message: '游戏已开始' };
   
+  // 检查是否掉线重连
+  const disconnectedPlayer = room.players.find(p => p.name === playerName && p.ws && p.ws.readyState !== WebSocket.OPEN);
+  if (disconnectedPlayer) {
+    disconnectedPlayer.ws = ws;
+    return { success: true, room, reconnect: true };
+  }
+  
+  // 添加新玩家
   const playerIndex = room.players.length;
   room.players.push({
     id: playerIndex,
@@ -116,6 +130,7 @@ wss.on('connection', (ws) => {
         // 创建房间
         const roomId = generateRoomId();
         const room = createRoom(ws, roomId, msg.playerName || '玩家1');
+        room.lastActivity = Date.now();
         
         // 添加房主到房间
         const player = {
@@ -142,11 +157,16 @@ wss.on('connection', (ws) => {
           return;
         }
         currentRoom = result.room;
-        playerInfo = result.room.players[result.room.players.length - 1];
+        currentRoom.lastActivity = Date.now(); // 更新活动时间
+        
+        // 获取当前玩家信息
+        playerInfo = result.room.players.find(p => p.ws === ws);
+        
         ws.send(JSON.stringify({ 
           type: 'joined', 
           roomId: result.room.id, 
           playerId: playerInfo.id,
+          reconnect: result.reconnect || false,
           players: result.room.players.map(p => ({ id: p.id, name: p.name, role: p.role }))
         }));
         
@@ -189,7 +209,8 @@ wss.on('connection', (ws) => {
         
         // 放置棋子
         currentRoom.board[row][col] = msg.playerId + 1; // 1:黑, 2:白, 3:红
-        currentRoom.history.push({ row, col, player: msg.playerId });
+        currentRoom.history.push({ row, col, player: msg.playerId, timestamp: Date.now() });
+        currentRoom.lastActivity = Date.now(); // 更新活动时间
         
         // 检查获胜
         const isWin = checkWin(currentRoom.board, row, col, msg.playerId + 1);
@@ -253,22 +274,74 @@ wss.on('connection', (ws) => {
     if (currentRoom) {
       const playerIndex = currentRoom.players.findIndex(p => p.ws === ws);
       if (playerIndex !== -1) {
-        currentRoom.players[playerIndex].ws = null;
+        const playerName = currentRoom.players[playerIndex].name;
+        const wasGameStarted = currentRoom.gameStarted;
+        
+        // 移除玩家
+        currentRoom.players.splice(playerIndex, 1);
         
         // 通知其他玩家
         broadcast(currentRoom, {
           type: 'playerLeft',
-          playerId: playerIndex
+          playerId: playerIndex,
+          playerName: playerName,
+          remainingPlayers: currentRoom.players.length
         });
         
+        // 如果游戏已开始且有人离开，游戏结束
+        if (wasGameStarted && currentRoom.gameStarted) {
+          currentRoom.gameStarted = false;
+          currentRoom.winner = null;
+          broadcast(currentRoom, {
+            type: 'gameEnd',
+            reason: `${playerName} 离开了游戏`
+          });
+        }
+        
         // 如果没有玩家了，删除房间
-        if (currentRoom.players.every(p => p.ws === null)) {
+        if (currentRoom.players.length === 0) {
           rooms.delete(currentRoom.id);
+        } else {
+          // 重新分配玩家ID（保持连续性）
+          currentRoom.players.forEach((p, i) => {
+            p.id = i;
+            p.role = PLAYERS[i];
+            p.color = COLORS[i];
+          });
         }
       }
     }
   });
 });
+
+// 定期清理空闲房间（每5分钟检查一次）
+setInterval(() => {
+  const now = Date.now();
+  let cleaned = 0;
+  
+  rooms.forEach((room, roomId) => {
+    // 删除没有玩家的房间
+    if (room.players.length === 0) {
+      rooms.delete(roomId);
+      cleaned++;
+      return;
+    }
+    
+    // 删除空闲超过30分钟的房间
+    const lastActivity = room.history.length > 0 
+      ? Math.max(...room.history.map(h => h.timestamp || 0))
+      : room.createdAt || now;
+    
+    if (now - lastActivity > 30 * 60 * 1000) {
+      rooms.delete(roomId);
+      cleaned++;
+    }
+  });
+  
+  if (cleaned > 0) {
+    console.log(`🧹 清理了 ${cleaned} 个空闲房间，剩余 ${rooms.size} 个房间`);
+  }
+}, 5 * 60 * 1000);
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {

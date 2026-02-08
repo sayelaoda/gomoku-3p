@@ -163,6 +163,24 @@
       border: 2px solid #ddd;
     }
     
+    .player-info {
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .player-nickname {
+      font-weight: bold;
+    }
+    
+    .player-role {
+      font-size: 12px;
+      opacity: 0.8;
+    }
+    
+    .player-item.current .player-role {
+      color: rgba(255,255,255,0.9);
+    }
+    
     .player-name {
       flex: 1;
       font-weight: 500;
@@ -185,15 +203,16 @@
       border: 2px solid #8b6914;
       padding: 2px;
       cursor: pointer;
+      width: 100%;
+      max-width: 420px;
+      aspect-ratio: 1;
+      margin: 0 auto;
     }
     
     .cell {
-      width: 28px;
-      height: 28px;
+      width: 100%;
+      padding-bottom: 100%;
       background: #f7e4ad;
-      display: flex;
-      align-items: center;
-      justify-content: center;
       position: relative;
     }
     
@@ -202,10 +221,12 @@
     }
     
     .piece {
-      width: 24px;
-      height: 24px;
+      width: 80%;
+      height: 80%;
       border-radius: 50%;
       position: absolute;
+      top: 10%;
+      left: 10%;
       z-index: 1;
     }
     
@@ -388,6 +409,29 @@
       }
       .sidebar {
         width: 100%;
+      }
+      .game-panel {
+        padding: 16px;
+      }
+      #gameBoard {
+        max-width: 100%;
+      }
+    }
+    
+    @media (max-width: 480px) {
+      body {
+        padding: 10px;
+      }
+      h1 {
+        font-size: 20px;
+      }
+      .room-id {
+        font-size: 28px;
+        letter-spacing: 4px;
+      }
+      .btn {
+        padding: 12px;
+        font-size: 14px;
       }
     }
   </style>
@@ -594,6 +638,9 @@
           playerId = msg.playerId;
           showWaiting(msg.roomId);
           updatePlayersList(msg.players);
+          if (msg.reconnect) {
+            console.log('重连成功！');
+          }
           break;
           
         case 'rooms':
@@ -602,11 +649,16 @@
           
         case 'playerJoined':
           updatePlayersList(msg.players);
-          document.getElementById('startBtn').disabled = players.length < 2;
           break;
           
         case 'playerLeft':
           updatePlayersList(msg.players);
+          alert(`${msg.playerName} 离开了房间`);
+          break;
+          
+        case 'gameEnd':
+          alert(`游戏结束: ${msg.reason}`);
+          showMenu();
           break;
           
         case 'gameStart':
@@ -683,12 +735,22 @@
       const colorNames = ['黑棋', '白棋', '红棋'];
       
       container.innerHTML = list.map((p, i) => `
-        <div class="player-item">
+        <div class="player-item ${p.id === playerId ? 'current' : ''}">
           <div class="player-color" style="background: ${colors[i]}"></div>
-          <div class="player-name">${p.name} ${p.id === playerId ? '(你)' : ''}</div>
-          <div class="player-status">${colorNames[i]}</div>
+          <div class="player-info">
+            <div class="player-nickname">${p.name} ${p.id === playerId ? '(你)' : ''}</div>
+            <div class="player-role">${colorNames[i]}</div>
+          </div>
         </div>
       `).join('');
+      
+      // 更新开始按钮状态
+      const startBtn = document.getElementById('startBtn');
+      if (startBtn) {
+        const activePlayers = list.filter(p => p.ws !== null).length;
+        startBtn.disabled = activePlayers < 2;
+        startBtn.textContent = `🚀 开始游戏 (${activePlayers}/2-3人)`;
+      }
     }
     
     // 开始游戏
@@ -728,8 +790,12 @@
       const indicator = document.getElementById('turnIndicator');
       const text = document.getElementById('turnText');
       
+      // 查找当前玩家昵称
+      const currentPlayerInfo = players.find(p => p.id === player);
+      const playerName = currentPlayerInfo ? currentPlayerInfo.name : '';
+      
       indicator.style.background = colors[player];
-      text.textContent = `${names[player]} 的回合`;
+      text.textContent = `${names[player]} (${playerName}) 的回合`;
       
       const turnDiv = document.getElementById('currentTurn');
       if (player === 1) {
