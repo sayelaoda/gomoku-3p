@@ -329,14 +329,14 @@ wss.on('connection', (ws) => {
       case 'move': {
         if (!currentRoom || !currentRoom.gameStarted) return;
         if (currentRoom.waitingReconnect) return;
+        
+        const currentPlayer = currentRoom.players.find(p => p.orderId === msg.orderId);
+        if (!currentPlayer) return;
         if (currentRoom.currentPlayer !== msg.orderId) return;
         
         const { row, col } = msg;
         if (row < 0 || row >= 15 || col < 0 || col >= 15) return;
         if (currentRoom.board[row][col] !== 0) return;
-        
-        const currentPlayer = currentRoom.players.find(p => p.orderId === msg.orderId);
-        if (!currentPlayer) return;
         
         currentRoom.board[row][col] = currentPlayer.colorId + 1;
         currentRoom.history.push({ row, col, player: msg.orderId, colorId: currentPlayer.colorId, timestamp: Date.now() });
@@ -352,7 +352,10 @@ wss.on('connection', (ws) => {
           moveData.gameOver = true;
           currentRoom.waitingReconnect = false;
         } else {
-          currentRoom.currentPlayer = (currentRoom.currentPlayer + 1) % currentRoom.players.length;
+          // currentPlayer是orderId，需要找到索引再+1
+          const currentIdx = currentRoom.players.findIndex(p => p.orderId === msg.orderId);
+          const nextIdx = (currentIdx + 1) % currentRoom.players.length;
+          currentRoom.currentPlayer = currentRoom.players[nextIdx].orderId;
           moveData.currentPlayer = currentRoom.currentPlayer;
         }
         
