@@ -441,7 +441,7 @@
           document.getElementById('homeSidebar').style.display = 'none';
           document.getElementById('gameSidebar').style.display = 'block';
           initBoard();
-          currentTurn = 0;
+          currentTurn = msg.currentPlayer ?? 0;
           waitingReconnect = false;
           pendingOfflineOrderId = null;
           clearChat();
