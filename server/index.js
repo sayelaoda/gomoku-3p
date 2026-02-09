@@ -129,6 +129,7 @@ wss.on('connection', (ws) => {
               colorId: offlinePlayer.colorId,
               board: room.board,
               currentPlayer: room.currentPlayer,
+              lastMove: room.lastMove,
               ownerOrderId: room.players.find(p => p.isOwner)?.orderId ?? 0,
               players: room.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color, online: p.ws && p.ws.readyState === WebSocket.OPEN }))
             });
@@ -166,6 +167,7 @@ wss.on('connection', (ws) => {
             colorId: existingPlayer.colorId,
             board: room.board,
             currentPlayer: room.currentPlayer,
+            lastMove: room.lastMove,
             ownerOrderId: room.players.find(p => p.isOwner)?.orderId ?? 0,
             players: room.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color, online: p.ws && p.ws.readyState === WebSocket.OPEN }))
           });
@@ -308,7 +310,7 @@ wss.on('connection', (ws) => {
         
         const isWin = checkWin(currentRoom.board, row, col, currentPlayer.colorId + 1);
         
-        const moveData = { type: 'move', row, col, orderId: msg.orderId, colorId: currentPlayer.colorId };
+        const moveData = { type: 'move', row, col, orderId: msg.orderId, colorId: currentPlayer.colorId, lastMove: { row, col } };
         
         if (isWin) {
           currentRoom.winner = msg.orderId;
@@ -471,11 +473,12 @@ wss.on('connection', (ws) => {
         } else {
           // 游戏未开始，房主离开则房间解散
           if (wasOwner) {
-            rooms.delete(currentRoom.id);
+            // 先通知所有玩家房间解散
             broadcast(currentRoom, {
-              type: 'playerLeft',
-              playerName: playerName
+              type: 'roomDismissed',
+              message: '房主已离开，房间解散'
             });
+            rooms.delete(currentRoom.id);
             currentRoom = null;
             playerInfo = null;
             return;

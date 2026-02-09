@@ -111,8 +111,20 @@
       max-width: 500px;
     }
     
-    .cell { aspect-ratio: 1; background: #e8c39e; border-radius: 2px; cursor: pointer; }
+    .cell { aspect-ratio: 1; background: #e8c39e; border-radius: 2px; cursor: pointer; position: relative; }
     .cell:hover { background: #d4a574; }
+    
+    /* 最新落子提示 */
+    .cell.last-move::after {
+      content: '';
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      background: #888888;
+      border-radius: 50%;
+      z-index: 10;
+      pointer-events: none;
+    }
     
     .piece {
       width: 85%;
@@ -417,6 +429,20 @@
           addSystemMessage(msg.playerName + ' 离开了房间');
           break;
           
+        case 'roomDismissed':
+          alert(msg.message || '房主已离开，房间解散');
+          currentRoomId = null;
+          myOrderId = null;
+          ownerOrderId = 0;
+          players = [];
+          waitingReconnect = false;
+          pendingOfflineOrderId = null;
+          switchScreen('menuScreen');
+          document.getElementById('homeSidebar').style.display = 'block';
+          document.getElementById('gameSidebar').style.display = 'none';
+          refreshRoomList();
+          break;
+          
         case 'colorChanged':
           players = msg.players || [];
           updatePlayerList();
@@ -454,6 +480,10 @@
           
         case 'move':
           placePiece(msg.row, msg.col, msg.colorId);
+          // 移除之前的提示，添加新的落子提示
+          document.querySelectorAll('.cell.last-move').forEach(c => c.classList.remove('last-move'));
+          const lastCell = document.querySelector('.cell[data-row="' + msg.row + '"][data-col="' + msg.col + '"]');
+          if (lastCell) lastCell.classList.add('last-move');
           currentTurn = msg.currentPlayer;
           updateTurn();
           if (msg.gameOver) {
@@ -527,6 +557,12 @@
                 }
               }
             }
+          }
+          
+          // 显示最新落子提示
+          if (msg.lastMove) {
+            const lastCell = document.querySelector('.cell[data-row="' + msg.lastMove.row + '"][data-col="' + msg.lastMove.col + '"]');
+            if (lastCell) lastCell.classList.add('last-move');
           }
           
           updateGame();
