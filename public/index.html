@@ -118,12 +118,21 @@
     .cell.last-move::after {
       content: '';
       position: absolute;
-      width: 8px;
-      height: 8px;
+      top: 50%;
+      left: 50%;
+      width: 10px;
+      height: 10px;
       background: #888888;
       border-radius: 50%;
+      transform: translate(-50%, -50%);
       z-index: 10;
       pointer-events: none;
+      animation: pulse 1s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+      50% { opacity: 0.6; transform: translate(-50%, -50%) scale(1.2); }
     }
     
     .piece {
@@ -480,7 +489,7 @@
           
         case 'move':
           placePiece(msg.row, msg.col, msg.colorId);
-          // 移除之前的提示，添加新的落子提示
+          // 更新落子提示
           document.querySelectorAll('.cell.last-move').forEach(c => c.classList.remove('last-move'));
           const lastCell = document.querySelector('.cell[data-row="' + msg.row + '"][data-col="' + msg.col + '"]');
           if (lastCell) lastCell.classList.add('last-move');
@@ -557,12 +566,6 @@
                 }
               }
             }
-          }
-          
-          // 显示最新落子提示
-          if (msg.lastMove) {
-            const lastCell = document.querySelector('.cell[data-row="' + msg.lastMove.row + '"][data-col="' + msg.lastMove.col + '"]');
-            if (lastCell) lastCell.classList.add('last-move');
           }
           
           updateGame();

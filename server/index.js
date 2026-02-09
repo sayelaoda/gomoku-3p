@@ -130,6 +130,8 @@ wss.on('connection', (ws) => {
               board: room.board,
               currentPlayer: room.currentPlayer,
               lastMove: room.lastMove,
+              currentPlayer: room.currentPlayer,
+              lastMove: room.lastMove,
               ownerOrderId: room.players.find(p => p.isOwner)?.orderId ?? 0,
               players: room.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color, online: p.ws && p.ws.readyState === WebSocket.OPEN }))
             });
@@ -137,6 +139,8 @@ wss.on('connection', (ws) => {
             broadcast(room, {
               type: 'playerReconnected',
               playerName: offlinePlayer.name,
+              currentPlayer: room.currentPlayer,
+              lastMove: room.lastMove,
               ownerOrderId: room.players.find(p => p.isOwner)?.orderId ?? 0,
               players: room.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color, online: p.ws && p.ws.readyState === WebSocket.OPEN }))
             }, ws);
@@ -167,15 +171,18 @@ wss.on('connection', (ws) => {
             colorId: existingPlayer.colorId,
             board: room.board,
             currentPlayer: room.currentPlayer,
-            lastMove: room.lastMove,
-            ownerOrderId: room.players.find(p => p.isOwner)?.orderId ?? 0,
+            currentPlayer: room.currentPlayer,
+              lastMove: room.lastMove,
+              ownerOrderId: room.players.find(p => p.isOwner)?.orderId ?? 0,
             players: room.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color, online: p.ws && p.ws.readyState === WebSocket.OPEN }))
           });
           
           broadcast(room, {
             type: 'playerReconnected',
             playerName: existingPlayer.name,
-            ownerOrderId: room.players.find(p => p.isOwner)?.orderId ?? 0,
+            currentPlayer: room.currentPlayer,
+              lastMove: room.lastMove,
+              ownerOrderId: room.players.find(p => p.isOwner)?.orderId ?? 0,
             players: room.players.map(p => ({ orderId: p.orderId, colorId: p.colorId, name: p.name, role: p.role, color: p.color, online: p.ws && p.ws.readyState === WebSocket.OPEN }))
           }, ws);
           return;
@@ -414,9 +421,15 @@ wss.on('connection', (ws) => {
       
       case 'getRooms': {
         const roomList = [];
+        const now = Date.now();
         rooms.forEach((room, id) => {
-          if (!room.gameStarted && room.players.length > 0) {
-            roomList.push({ id, playerCount: room.players.length });
+          // 只显示有在线玩家且未开始游戏的房间
+          const onlinePlayers = room.players.filter(p => p.ws && p.ws.readyState === WebSocket.OPEN);
+          if (!room.gameStarted && onlinePlayers.length > 0 && now - room.lastActivity < 24 * 60 * 60 * 1000) {
+            roomList.push({ id, playerCount: onlinePlayers.length });
+          } else if (room.players.length === 0) {
+            // 清理空房间
+            rooms.delete(id);
           }
         });
         safeSend(ws, { type: 'rooms', rooms: roomList });
@@ -473,18 +486,13 @@ wss.on('connection', (ws) => {
         } else {
           // 游戏未开始，房主离开则房间解散
           if (wasOwner) {
-            // 保存当前房间的players用于broadcast
-            const playersToNotify = [...currentRoom.players];
-            const dismissMessage = { type: 'roomDismissed', message: '房主已离开，房间解散' };
             rooms.delete(currentRoom.id);
+            broadcast(currentRoom, {
+              type: 'roomDismissed',
+              message: '房主已离开，房间解散'
+            });
             currentRoom = null;
             playerInfo = null;
-            // 手动通知其他玩家
-            playersToNotify.forEach(p => {
-              if (p.ws && p.ws.readyState === WebSocket.OPEN && p.ws !== ws) {
-                safeSend(p.ws, dismissMessage);
-              }
-            });
             return;
           }
           
